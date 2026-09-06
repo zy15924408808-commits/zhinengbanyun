@@ -1,0 +1,42 @@
+# Keil MDK
+*.uvguix.*
+*.bak
+*.ddk
+*.edk
+*.lst
+*.lnp
+*.mpf
+*.mpj
+*.omf
+*.plg
+*.tra
+*.dep
+*.uvopt
+*.uvoptx
+*.map
+*.axf
+*.htm
+*.lnp
+*.sct
+*.iex
+Listings/
+Objects/
+DebugConfig/
+
+# Build outputs
+Debug/
+Release/
+Output/
+*.o
+*.d
+*.crf
+*.hex
+*.bin
+*.elf
+
+# STM32CubeMX backup
+*.ioc.bak
+
+# System files
+.DS_Store
+Thumbs.db
