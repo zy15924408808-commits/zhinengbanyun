@@ -20,7 +20,12 @@ struct bsp_usart
 
 typedef struct bsp_usart *BSP_USART_t;
 
-void BSP_USART_Iint(BSP_USART_t usart, UART_HandleTypeDef *huart );
+void BSP_USART_Init(BSP_USART_t usart, UART_HandleTypeDef *huart );
+
+void BSP_USART_SetRxCallback(BSP_USART_t usart, void (*callback)(uint8_t *data, uint16_t len));
+void BSP_USART_SetRxBuffer(BSP_USART_t usart, uint8_t* buffer,uint16_t size);
+uint8_t BSP_USART_IsInitialized(BSP_USART_t usart);
+
 void BSP_USART_SendByte(BSP_USART_t usart, uint8_t data);
 void BSP_USART_SendData(BSP_USART_t usart, uint8_t *data, uint16_t len);
 void BSP_USART_Printf(BSP_USART_t usart, const char *format,...);

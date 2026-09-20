@@ -8,11 +8,18 @@
                 "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy",
                 "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
                 "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Drivers\\CMSIS\\Include",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Middlewares\\Third_Party\\FreeRTOS\\Source\\include",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Middlewares\\Third_Party\\FreeRTOS\\Source\\CMSIS_RTOS_V2",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\RVDS\\ARM_CM4F",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\BSP\\Inc",
                 "C:\\Keil_v5\\ARM\\ARMCC\\include",
                 "C:\\Keil_v5\\ARM\\ARMCC\\include\\rw",
                 "d:\\Zy\\DaLian\\code\\text01_26.6.2\\MDK-ARM",
                 "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Core\\Src",
-                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Drivers\\STM32F4xx_HAL_Driver\\Src"
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Drivers\\STM32F4xx_HAL_Driver\\Src",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Middlewares\\Third_Party\\FreeRTOS\\Source",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\Middlewares\\Third_Party\\FreeRTOS\\Source\\portable\\MemMang",
+                "d:\\Zy\\DaLian\\code\\text01_26.6.2\\BSP\\Src"
             ],
             "defines": [
                 "USE_HAL_DRIVER",

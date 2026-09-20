@@ -26,8 +26,8 @@ void Board_Init(void)
     BSP_LED_Init(led3, GPIOB, GPIO_PIN_5,LED_ACTIVE_LOW);
     
     /* USART对象初始化 */
-    BSP_USART_Iint(debug_uart,   &huart5);
-    BSP_USART_Iint(motor_uart,   &huart4);
-    BSP_USART_Iint(camera_uart,  &huart1);
-    BSP_USART_Iint(gyro_uart,    &huart2);
+    BSP_USART_Init(debug_uart,   &huart5);
+    BSP_USART_Init(motor_uart,   &huart4);
+    BSP_USART_Init(camera_uart,  &huart1);
+    BSP_USART_Init(gyro_uart,    &huart2);
 }
