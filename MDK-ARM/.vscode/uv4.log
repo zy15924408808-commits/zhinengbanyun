@@ -1,2 +1,8 @@
-Load "text01_26.6.2\\text01_26.6.2" 
-Erase Done.Programming Done.Verify OK.Flash Load finished at 22:25:13
+*** Using Compiler 'V5.06 update 7 (build 960)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
+Build target 'text01_26.6.2'
+compiling bsp_bno080.c...
+linking...
+Program Size: Code=23920 RO-data=636 RW-data=216 ZI-data=20480  
+FromELF: creating hex file...
+"text01_26.6.2\text01_26.6.2" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed:  00:00:03
