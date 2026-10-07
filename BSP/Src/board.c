@@ -1,6 +1,6 @@
 #include "board.h"
 
-/* LED对象 */
+/* LED初始化 */
 static struct bsp_led board_led1;
 static struct bsp_led board_led2;
 static struct bsp_led board_led3;
@@ -8,26 +8,53 @@ BSP_LED_t led1 = &board_led1;
 BSP_LED_t led2 = &board_led2;
 BSP_LED_t led3 = &board_led3;
 
-/* 串口对象 */
+/* 串口初始化 */
 static struct bsp_usart board_debug_uart;
 static struct bsp_usart board_motor_uart;
 static struct bsp_usart board_camera_uart;
-static struct bsp_usart board_gyro_uart;
 BSP_USART_t debug_uart  = &board_debug_uart;      /* UART5 调试串口 */
 BSP_USART_t motor_uart  = &board_motor_uart;      /* UART4 底盘电机控制 */
 BSP_USART_t camera_uart = &board_camera_uart;     /* USART1 摄像头 */
-BSP_USART_t gyro_uart   = &board_gyro_uart;       /* USART2 陀螺仪 */
+
+/* I2C2初始化 */
+static struct bsp_bno080 board_imu;
+BSP_BNO080_t imu = &board_imu;
+
+/* SPI初始化 */
+static struct bsp_oled board_oled;
+BSP_OLED_t oled = &board_oled;
 
 void Board_Init(void)
 {
-    /* LED对象初始化 */
+    /* LED初始化函数 */
     BSP_LED_Init(led1, GPIOB, GPIO_PIN_3,LED_ACTIVE_LOW);
     BSP_LED_Init(led2, GPIOB, GPIO_PIN_4,LED_ACTIVE_LOW);
     BSP_LED_Init(led3, GPIOB, GPIO_PIN_5,LED_ACTIVE_LOW);
     
-    /* USART对象初始化 */
+    /* USART初始化函数 */
     BSP_USART_Init(debug_uart,   &huart5);
     BSP_USART_Init(motor_uart,   &huart4);
     BSP_USART_Init(camera_uart,  &huart1);
-    BSP_USART_Init(gyro_uart,    &huart2);
+    
+    if(BSP_BNO080_Init(imu, &hi2c2, 0x4B, GPIOB, GPIO_PIN_0, GPIOA, GPIO_PIN_4))
+    {
+        printf("IMU init OK\n");
+    }
+    else
+    {
+        printf("IMU init FAIL\n");
+    }
+
+    if(BSP_OLED_Init(oled, &hspi1, 
+                     OLED_CS_GPIO_Port, OLED_CS_Pin,
+                     OLED_DC_GPIO_Port, OLED_DC_Pin,
+                     OLED_RST_GPIO_Port, OLED_RST_Pin) == HAL_OK)
+    {
+        printf("OLED init OK\r\n");
+    }
+    else
+    {
+        printf("OLED init FAIL\r\n");
+    }
 }
+

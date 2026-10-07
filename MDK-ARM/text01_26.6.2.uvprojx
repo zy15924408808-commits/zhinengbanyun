@@ -1769,6 +1769,16 @@
               <FileType>1</FileType>
               <FilePath>..\BSP\Src\bsp_bno080.c</FilePath>
             </File>
+            <File>
+              <FileName>bsp_oled.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Src\bsp_oled.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_oled_font.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Src\bsp_oled_font.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

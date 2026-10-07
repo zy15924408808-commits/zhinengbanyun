@@ -5,6 +5,11 @@
 #include "bsp_led.h"
 #include "bsp_usart.h"
 #include "usart.h"
+#include "bsp_bno080.h"
+#include "i2c.h"
+#include <stdio.h>
+#include "bsp_oled.h"
+#include "spi.h"
 
 extern BSP_LED_t led1;
 extern BSP_LED_t led2;
@@ -13,7 +18,10 @@ extern BSP_LED_t led3;
 extern BSP_USART_t debug_uart;      /* UART5  调试串口*/
 extern BSP_USART_t motor_uart;      /* UART4  底盘电机控制 */
 extern BSP_USART_t camera_uart;     /* USART1 摄像头 */
-extern BSP_USART_t gyro_uart;       /* USART2 陀螺仪 */
+
+extern BSP_BNO080_t imu;
+
+extern BSP_OLED_t oled;
 
 void Board_Init(void);
 

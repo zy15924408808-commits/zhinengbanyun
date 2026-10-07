@@ -185,10 +185,17 @@ void StartControl(void *argument)
 void StartSensor(void *argument)
 {
   /* USER CODE BEGIN StartSensor */
+  float qi, qj, qk, qreal;
+
+  BSP_BNO080_EnableRotationVector(imu, 100);
   /* Infinite loop */
   for(;;)
   {
-    printf("Start Sensor Running\r\n");
+    if(BSP_BNO080_DataAvailable(imu))
+    {
+        BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
+        printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n", qi, qj, qk, qreal);
+    }
     osDelay(1000);
   }
   /* USER CODE END StartSensor */
@@ -205,6 +212,17 @@ void StartUI(void *argument)
 {
   /* USER CODE BEGIN StartUI */
   /* Infinite loop */
+  BSP_OLED_Fill(oled, 0x00);
+
+  BSP_OLED_DrawString(oled, 0U, 0U, "OLED TEST");
+  BSP_OLED_DrawString(oled, 0U, 54U, "IMU OK");
+  BSP_OLED_DrawString(oled, 2U, 0U, "X42S");
+
+  if (BSP_OLED_Update(oled) != HAL_OK)
+  {
+    printf("OLED update FAIL\r\n");
+  }
+
     for(;;)
     {
         BSP_LED_On(led1);
