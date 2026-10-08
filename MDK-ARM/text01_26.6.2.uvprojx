@@ -1779,6 +1779,16 @@
               <FileType>1</FileType>
               <FilePath>..\BSP\Src\bsp_oled_font.c</FilePath>
             </File>
+            <File>
+              <FileName>bsp_power.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Src\bsp_power.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_x42s.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Src\bsp_x42s.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

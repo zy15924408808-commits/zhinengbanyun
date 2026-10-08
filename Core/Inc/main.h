@@ -62,6 +62,8 @@ void Error_Handler(void);
 #define BNO080_INT_EXTI_IRQn EXTI4_IRQn
 #define BNO080_RST_Pin GPIO_PIN_0
 #define BNO080_RST_GPIO_Port GPIOB
+#define VM_SW_Pin GPIO_PIN_0
+#define VM_SW_GPIO_Port GPIOD
 #define OLED_DC_Pin GPIO_PIN_4
 #define OLED_DC_GPIO_Port GPIOD
 #define OLED_CS_Pin GPIO_PIN_5
