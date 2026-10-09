@@ -166,10 +166,32 @@ void StartDefaultTask(void *argument)
 void StartControl(void *argument)
 {
   /* USER CODE BEGIN StartControl */
+  HAL_StatusTypeDef status;
+  /* 等待电机上电启动 */
+  osDelay(2000);
+
+  /*使能电机*/
+  status = BSP_X42S_Enable(motor1, 1U);
+  printf("X42S enable TX:%d\r\n", (int)status);
+  osDelay(500);
+
+  /* 逆时针 60 RPM，运行3秒 */
+  status = BSP_X42S_SetSpeed(motor1, BSP_X42S_CCW, 60U, 0U);
+  printf("X42S speed TX:%d\r\n", (int)status);
+  osDelay(3000);
+
+  /* 发送0 RPM 停止 */
+  status = BSP_X42S_SetSpeed(motor1, BSP_X42S_CW, 0U, 0U);
+  printf("X42S stop TX:%d\r\n", (int)status);
+  osDelay(500);
+
+  /* 关闭驱动 */
+  status = BSP_X42S_Enable(motor1, 0U);
+  printf("X42S disable TX:%d\r\n", (int)status);
+
   /* Infinite loop */
   for(;;)
   {
-    printf("Start Control Running\r\n");
     osDelay(1000);
   }
   /* USER CODE END StartControl */

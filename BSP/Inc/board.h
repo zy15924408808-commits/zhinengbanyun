@@ -11,6 +11,7 @@
 #include "bsp_oled.h"
 #include "spi.h"
 #include "bsp_power.h"
+#include "bsp_x42s.h"
 
 extern BSP_LED_t led1;
 extern BSP_LED_t led2;
@@ -23,6 +24,8 @@ extern BSP_USART_t camera_uart;     /* USART1 摄像头 */
 extern BSP_BNO080_t imu;
 
 extern BSP_OLED_t oled;
+
+extern BSP_X42S_t motor1;
 
 void Board_Init(void);
 

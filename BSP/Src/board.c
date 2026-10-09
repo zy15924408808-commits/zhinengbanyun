@@ -24,6 +24,10 @@ BSP_BNO080_t imu = &board_imu;
 static struct bsp_oled board_oled;
 BSP_OLED_t oled = &board_oled;
 
+/* 电机对象 */
+static struct bsp_x42s board_motor1;
+BSP_X42S_t motor1 = &board_motor1;
+
 void Board_Init(void)
 {
     /* 开启电机供电 */
@@ -57,10 +61,20 @@ void Board_Init(void)
     {
         printf("OLED init OK\r\n");
     }
-    
     else
     {
         printf("OLED init FAIL\r\n");
     }
+
+    /* 绑定单电机对象 */
+    if(BSP_X42S_Init(motor1, motor_uart, 1U) == HAL_OK)
+    {
+        printf("X42S object init OK\r\n");
+    }
+    else
+    {
+        printf("X42S object init FAIL\r\n");
+    }
+
 }
 
