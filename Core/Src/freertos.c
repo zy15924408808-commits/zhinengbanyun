@@ -26,12 +26,17 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 #include "board.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct
+{
+  uint16_t len;
+  uint8_t data[64];
+}MotorRxChunk_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -46,8 +51,10 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-
+static osMessageQueueId_t motor_rx_queue;
+static volatile uint32_t motor_rx_drop_count = 0U;
 /* USER CODE END Variables */
+
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
@@ -77,9 +84,18 @@ const osThreadAttr_t UITask_attributes = {
   .priority = (osPriority_t) osPriorityLow,
 };
 
+/* Definitions for MotorRxTask */
+osThreadId_t MotorRxTaskHandle;
+const osThreadAttr_t MotorRxTask_attributes = {
+  .name = "MotorRxTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
+static void MotorUartRxCallback(uint8_t *data, uint16_t len);
+void StartMotorRxTask(void *argument);
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
@@ -113,6 +129,16 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  /* 最多暂存8个接收数据块 */
+  motor_rx_queue = osMessageQueueNew(8U, sizeof(MotorRxChunk_t), NULL);
+  if(motor_rx_queue == NULL)
+  {
+    Error_Handler();
+  }
+  else
+  {
+    BSP_USART_SetRxCallback(motor_uart, MotorUartRxCallback);
+  }
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -130,6 +156,8 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+    /* creation of MotorRxTask */
+  MotorRxTaskHandle = osThreadNew(StartMotorRxTask, NULL, &MotorRxTask_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -166,35 +194,125 @@ void StartDefaultTask(void *argument)
 void StartControl(void *argument)
 {
   /* USER CODE BEGIN StartControl */
+  BSP_X42S_t motors[4] = {motor1, motor2, motor3, motor4};
+  /* 各轮朝车体前进方向滚动时的电机方向 */
+  BSP_X42S_Direction_t forward_direction[4] =
+  {
+    BSP_X42S_CW,
+    BSP_X42S_CCW,
+    BSP_X42S_CW,
+    BSP_X42S_CCW,
+  };
+
   HAL_StatusTypeDef status;
+  uint8_t i;
+  uint8_t failed;
+
   /* 等待电机上电启动 */
   osDelay(2000);
+  failed = 0U;
 
-  /*使能电机*/
-  status = BSP_X42S_Enable(motor1, 1U);
-  printf("X42S enable TX:%d\r\n", (int)status);
-  osDelay(500);
+  /*先使能四台电机*/
+  for(i = 0U; i < 4U; i++)
+  {
+    status = BSP_X42S_Enable(motors[i], 1U);
+    printf("Motor %u enable TX:%d\r\n",(unsigned int)(i + 1U), (int)status);
 
-  /* 逆时针 60 RPM，运行3秒 */
-  status = BSP_X42S_SetSpeed(motor1, BSP_X42S_CCW, 60U, 0U);
-  printf("X42S speed TX:%d\r\n", (int)status);
-  osDelay(3000);
+    if(status != HAL_OK)
+    {
+      failed = 1U;
+      break;
+    }
+    osDelay(10);
+  }
+  /*全部使能发送成功后，下发前进速度*/
+  if(failed == 0U)
+  {
+    for(i = 0U; i < 4U; i++)
+    {
+      status = BSP_X42S_SetSpeed(motors[i], forward_direction[i], 60U, 0U);
+      printf("Motor %u speed TX:%d\r\n", (unsigned int)(i + 1), status);
 
-  /* 发送0 RPM 停止 */
-  status = BSP_X42S_SetSpeed(motor1, BSP_X42S_CW, 0U, 0U);
-  printf("X42S stop TX:%d\r\n", (int)status);
-  osDelay(500);
+      if(status != HAL_OK)
+      {
+        failed = 1U;
+        break;
+      }
+      osDelay(10);
+    }
+  }
+  if(failed == 0U)
+  {
+    osDelay(3000);
+  }
 
-  /* 关闭驱动 */
-  status = BSP_X42S_Enable(motor1, 0U);
-  printf("X42S disable TX:%d\r\n", (int)status);
+  /* 正常结束或发送异常，都尝试停止电机 */
+  for(i = 0U; i < 4U; i++)
+  {
+    status = BSP_X42S_SetSpeed(motors[i], forward_direction[i], 0U, 0U);
+    printf("Motor %u stop TX:%d\r\n", (unsigned int)(i + 1U), (int)status);
+    osDelay(10);
+  }
+  osDelay(10);
 
+  /* 关闭全部电机驱动 */
+  for(i = 0U; i < 4U; i++)
+  {
+    status = BSP_X42S_Enable(motors[i], 0U);
+    printf("Motor %u disable TX%d\r\n", (unsigned int)(i + 1U), (int)status);
+    osDelay(10);
+  }
+  
   /* Infinite loop */
   for(;;)
   {
     osDelay(1000);
   }
   /* USER CODE END StartControl */
+}
+
+void StartMotorRxTask(void *argument)
+{
+    MotorRxChunk_t message;
+    HAL_StatusTypeDef status;
+    uint16_t i;
+
+    /* 任务运行后再启动 DMA，确保调度器和队列已经运行 */
+    status = BSP_USART_StartReceiveToIdle(motor_uart);
+    printf("Motor RX DMA start:%d\r\n", (int)status);
+
+    for (;;)
+    {
+        if (osMessageQueueGet(
+                motor_rx_queue,
+                &message,
+                NULL,
+                osKernelGetTickFreq()) == osOK)
+        {
+            printf("Motor RX len:%u data:",
+                   (unsigned int)message.len);
+
+            for (i = 0U; i < message.len; i++)
+            {
+                printf(" %02X", message.data[i]);
+            }
+
+            printf("\r\n");
+        }
+                else
+        {
+            printf("RX state:0x%02X remaining:%lu error:0x%08lX\r\n",
+                   (unsigned int)motor_uart->huart->RxState,
+                   (unsigned long)__HAL_DMA_GET_COUNTER(
+                       motor_uart->huart->hdmarx),
+                   (unsigned long)HAL_UART_GetError(
+                       motor_uart->huart));
+
+            printf("RX restart:%d dropped:%lu\r\n",
+                   (int)motor_uart->rx_restart_status,
+                   (unsigned long)motor_rx_drop_count);
+        }
+    }
 }
 
 /* USER CODE BEGIN Header_StartSensor */
@@ -213,11 +331,11 @@ void StartSensor(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    if(BSP_BNO080_DataAvailable(imu))
-    {
-        BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
-        printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n", qi, qj, qk, qreal);
-    }
+   if(BSP_BNO080_DataAvailable(imu))
+   {
+       BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
+       printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n", qi, qj, qk, qreal);
+   }
     osDelay(1000);
   }
   /* USER CODE END StartSensor */
@@ -262,6 +380,25 @@ void StartUI(void *argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+/* 在接收中断中执行：复制数据并入队 */
+static void MotorUartRxCallback(uint8_t *data, uint16_t len)
+{
+  MotorRxChunk_t message = {0};
 
+  if(data == NULL || len == 0U || len > sizeof(message.data) || motor_rx_queue == NULL)
+  {
+    motor_rx_drop_count++;
+    return;
+  }
+
+  message.len = len;
+  memcpy(message.data, data, len);
+
+  if(osMessageQueuePut(motor_rx_queue, &message, 0U, 0U) != osOK)
+  {
+    motor_rx_drop_count++;
+  }
+
+}
 /* USER CODE END Application */
 

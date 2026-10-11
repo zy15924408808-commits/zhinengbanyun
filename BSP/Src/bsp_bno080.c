@@ -6,13 +6,13 @@ static bool BNO080_ReceivePacket(BSP_BNO080_t bno);
 static void BNO080_SetFeatureCommand(BSP_BNO080_t bno, uint8_t report_id, uint32_t interval_us);
 
 /**
- * ·¢ËÍÒ»¸öSHTP°ü
- * °ü½á¹¹£º[³¤¶ÈLSB][³¤¶ÈMSB][Í¨µÀºÅ][ĞòÁĞºÅ] + shtp_dataÀïµÄÊı¾İ
- * ĞòÁĞºÅÃ¿¸öÍ¨µÀ¶ÀÁ¢×ÔÔö£¬ÓÃÓÚ¼ì²â¶ª°ü/ÂÒĞò
+ * å‘é€ä¸€ä¸ªSHTPåŒ…
+ * åŒ…ç»“æ„ï¼š[é•¿åº¦LSB][é•¿åº¦MSB][é€šé“å·][åºåˆ—å·] + shtp_dataé‡Œçš„æ•°æ®
+ * åºåˆ—å·æ¯ä¸ªé€šé“ç‹¬ç«‹è‡ªå¢ï¼Œç”¨äºæ£€æµ‹ä¸¢åŒ…/ä¹±åº
  */
 static bool BNO080_SendPacket(BSP_BNO080_t bno, uint8_t channel, uint8_t data_length)
 {
-    uint16_t packet_length = data_length + 4; /* ×Ü³¤¶È=Êı¾İ+4×Ö½Ú */
+    uint16_t packet_length = data_length + 4; /* æ€»é•¿åº¦=æ•°æ®+4å­—èŠ‚ */
     uint8_t tx_buf[BNO080_MAX_PACKET_SIZE + 4];
 
     tx_buf[0] = packet_length & 0xFF;
@@ -22,7 +22,7 @@ static bool BNO080_SendPacket(BSP_BNO080_t bno, uint8_t channel, uint8_t data_le
 
     memcpy(&tx_buf[4], bno->shtp_data, data_length);
 
-    /* HALÒªÇó8Î»µØÖ·,7Î»µØÖ·×óÒÆ1Î» */
+    /* HALè¦æ±‚8ä½åœ°å€,7ä½åœ°å€å·¦ç§»1ä½ */
     if(HAL_I2C_Master_Transmit(bno->hi2c, bno->addr << 1, tx_buf, packet_length, 100) != HAL_OK)
     {
         return false;
@@ -32,24 +32,24 @@ static bool BNO080_SendPacket(BSP_BNO080_t bno, uint8_t channel, uint8_t data_le
 }
 
 /**
- * ½ÓÊÕÒ»¸öSHPT°ü
- * Á½´Î¶ÁÈ¡BNO080¡ª¡ªREAD_CHUNK_SIZE(Ò»´ÎI2CÍ¨ĞÅ),
- * ÔÙ¸ù¾İ°üÍ·ÀïµÄ³¤¶È×Ö¶Î£¬½ØÈ¡ÕæÕıÓĞĞ§µÄÊı¾İ²¿·Ö
+ * æ¥æ”¶ä¸€ä¸ªSHPTåŒ…
+ * ä¸¤æ¬¡è¯»å–BNO080â€”â€”READ_CHUNK_SIZE(ä¸€æ¬¡I2Cé€šä¿¡),
+ * å†æ ¹æ®åŒ…å¤´é‡Œçš„é•¿åº¦å­—æ®µï¼Œæˆªå–çœŸæ­£æœ‰æ•ˆçš„æ•°æ®éƒ¨åˆ†
  */
 static bool BNO080_ReceivePacket(BSP_BNO080_t bno)
 {
-    uint8_t rx_buf[BNO080_READ_CHUNK_SIZE]; /* ÁÙÊ±Êı×é */
-    uint16_t packet_length;                 /* Õû¸öSHTPÊı¾İ°ü³¤¶È */
-    uint16_t remaining;                     /* »¹ÓĞ¶àÉÙPayloadÃ»ÓĞ¶ÁÈ¡ */
-    uint16_t copied = 0;                    /* ÒÑ¸´ÖÆµ½ bno->shtp_data ÀïÃæ¶àÉÙ×Ö½Ú */
+    uint8_t rx_buf[BNO080_READ_CHUNK_SIZE]; /* ä¸´æ—¶æ•°ç»„ */
+    uint16_t packet_length;                 /* æ•´ä¸ªSHTPæ•°æ®åŒ…é•¿åº¦ */
+    uint16_t remaining;                     /* è¿˜æœ‰å¤šå°‘Payloadæ²¡æœ‰è¯»å– */
+    uint16_t copied = 0;                    /* å·²å¤åˆ¶åˆ° bno->shtp_data é‡Œé¢å¤šå°‘å­—èŠ‚ */
 
-    /* ÏÈ¶ÁÈ¡4×Ö½ÚSHTP°üÍ· */
+    /* å…ˆè¯»å–4å­—èŠ‚SHTPåŒ…å¤´ */
     if(HAL_I2C_Master_Receive(bno->hi2c, bno->addr << 1, bno->shtp_header, 4, 500) != HAL_OK)
     {
         return false;
     }
 
-    /* ´Ó°üÍ·ÌáÈ¡ÓĞĞ§Êı¾İ³¤¶È(°üÍ·Ç°Á½¸ö×Ö½Ú) */
+    /* ä»åŒ…å¤´æå–æœ‰æ•ˆæ•°æ®é•¿åº¦(åŒ…å¤´å‰ä¸¤ä¸ªå­—èŠ‚) */
     packet_length = (((uint16_t)bno->shtp_header[1] << 8) | bno->shtp_header[0]) & 0x7FFFU;
     if(packet_length < 4U)
     {
@@ -58,18 +58,18 @@ static bool BNO080_ReceivePacket(BSP_BNO080_t bno)
 
     remaining = packet_length - 4U;
 
-    /* Ã¿´Î¶ÁÈ¡¶¼°üº¬4×Ö½Ú°üÍ·£¬·Ö¶à´Î¶ÁÈ¡ÏûºÄÍêËùÓĞÓĞĞ§ÔØºÉ */
+    /* æ¯æ¬¡è¯»å–éƒ½åŒ…å«4å­—èŠ‚åŒ…å¤´ï¼Œåˆ†å¤šæ¬¡è¯»å–æ¶ˆè€—å®Œæ‰€æœ‰æœ‰æ•ˆè½½è· */
     while(remaining > 0U)
     {
-        uint16_t request_length = remaining + 4U;   /* Ã¿´Î¶ÁÈ¡¶¼°üº¬4×Ö½Ú°üÍ· */
-        uint16_t payload_length;                    /* ÓĞĞ§ÔØºÉ³¤¶È */
-        uint16_t copy_length;                       /* ¸´ÖÆ³¤¶È */
+        uint16_t request_length = remaining + 4U;   /* æ¯æ¬¡è¯»å–éƒ½åŒ…å«4å­—èŠ‚åŒ…å¤´ */
+        uint16_t payload_length;                    /* æœ‰æ•ˆè½½è·é•¿åº¦ */
+        uint16_t copy_length;                       /* å¤åˆ¶é•¿åº¦ */
 
         if(request_length > sizeof(rx_buf))
         {
             request_length = sizeof(rx_buf);
         }
-
+        /* å°†å®Œæ•´æ•°æ®è¯»å–åˆ° rx_bufä¸­ */
         if(HAL_I2C_Master_Receive(bno->hi2c, bno->addr << 1, rx_buf, request_length, 500) != HAL_OK)
         {
             return false;
@@ -82,7 +82,7 @@ static bool BNO080_ReceivePacket(BSP_BNO080_t bno)
             payload_length = remaining;
         }
 
-        /* ¸´ÖÆÓĞĞ§ÔØºÉµ½ bno->shtp_data */
+        /* å¤åˆ¶æœ‰æ•ˆè½½è·åˆ° bno->shtp_data */
         copy_length = payload_length;
 
         if(copied >= BNO080_MAX_PACKET_SIZE)
@@ -109,8 +109,8 @@ static bool BNO080_ReceivePacket(BSP_BNO080_t bno)
 bool BSP_BNO080_Init(BSP_BNO080_t bno, I2C_HandleTypeDef *hi2c, uint8_t addr, GPIO_TypeDef *rst_port, uint16_t rst_pin, GPIO_TypeDef *int_port, uint16_t int_pin)
 {
     uint8_t i;
-
-    /* ±£´æÓ²¼ş×ÊÔ´ */
+    uint32_t start_tick;
+    /* ä¿å­˜ç¡¬ä»¶èµ„æº */
     bno->hi2c       = hi2c;
     bno->addr       = addr;
     bno->rst_port   = rst_port;
@@ -118,7 +118,7 @@ bool BSP_BNO080_Init(BSP_BNO080_t bno, I2C_HandleTypeDef *hi2c, uint8_t addr, GP
     bno->int_port   = int_port;
     bno->int_pin    = int_pin;
 
-    /* ĞòÁĞºÅ¡¢±êÖ¾Î»ÇåÁã */
+    /* åºåˆ—å·ã€æ ‡å¿—ä½æ¸…é›¶ */
     for(i = 0; i < 6; i++)
     {
         bno->sequence_number[i] = 0;
@@ -126,56 +126,65 @@ bool BSP_BNO080_Init(BSP_BNO080_t bno, I2C_HandleTypeDef *hi2c, uint8_t addr, GP
     bno->data_ready_flag = 0;
     bno->is_initialized = 0;
 
-    /* Ó²¼ş¸´Î»£ºRSTÀ­µÍ±£³ÖÒ»¶ÎÊ±¼ä£¬ÔÙÀ­¸ßÊÍ·Å */
+    /* ç¡¬ä»¶å¤ä½ï¼šRSTæ‹‰ä½ä¿æŒä¸€æ®µæ—¶é—´ï¼Œå†æ‹‰é«˜é‡Šæ”¾ */
     HAL_GPIO_WritePin(bno->rst_port, bno->rst_pin, GPIO_PIN_RESET);
     HAL_Delay(10);
     HAL_GPIO_WritePin(bno->rst_port, bno->rst_pin, GPIO_PIN_SET);
-    HAL_Delay(100);/* µÈ´ıBNO080Æô¶¯Íê³É */
+    HAL_Delay(500);/* ç­‰å¾…BNO080å¯åŠ¨å®Œæˆ */
 
-    /* Çå¿Õ¸´Î»ºó×Ô¶¯·¢À´µÄ¹ã²¥°ü(executableÍ¨Öª + ³õÊ¼»¯ÏìÓ¦µÈ) */
+    /* æ¸…ç©ºå¤ä½åè‡ªåŠ¨å‘æ¥çš„å¹¿æ’­åŒ…(executableé€šçŸ¥ + åˆå§‹åŒ–å“åº”ç­‰) */
     for(i = 0; i < 5; i++)
     {
         if(!BNO080_ReceivePacket(bno))
         {
-            break; /* ¶Á²»µ½Êı¾İÁË£¬ËµÃ÷¹ã²¥°üÒÑÇå¿Õ */
+            break; /* è¯»ä¸åˆ°æ•°æ®äº†ï¼Œè¯´æ˜å¹¿æ’­åŒ…å·²æ¸…ç©º */
         }
         HAL_Delay(10);
     }
 
-    /* ·¢ËÍProduct IDÇëÇó£¬ÑéÖ¤Í¨ĞÅ */
+    /* å‘é€Product IDè¯·æ±‚ï¼ŒéªŒè¯é€šä¿¡ */
     bno->shtp_data[0] = 0xF9;/* Product ID Request */
     bno->shtp_data[1] = 0x00;
     if(!BNO080_SendPacket(bno, BNO080_CHANNEL_CONTROL, 2))
     {
         return false;
     }
-    HAL_Delay(10);
+    /* åœ¨æœ‰é™æ—¶é—´å†…æŸ¥æ‰¾ Product ID å“åº” */
+    start_tick = HAL_GetTick();
 
-    if(!BNO080_ReceivePacket(bno))
+    while ((uint32_t)(HAL_GetTick() - start_tick) < 1000U)
     {
-        return false;
+        /* INT ä½ç”µå¹³è¡¨ç¤ºä¼ æ„Ÿå™¨æœ‰æ•°æ®å¾…è¯»å– */
+        if (HAL_GPIO_ReadPin(bno->int_port, bno->int_pin)== GPIO_PIN_RESET)
+        {
+            if (BNO080_ReceivePacket(bno))
+            {
+                uint16_t packet_length;
+
+                packet_length =(((uint16_t)bno->shtp_header[1] << 8) | bno->shtp_header[0]) & 0x7FFFU;
+
+                if (packet_length > 4U && bno->shtp_header[2] == BNO080_CHANNEL_CONTROL && bno->shtp_data[0] == 0xF8)
+                {
+                    bno->is_initialized = 1U;
+                    return true;
+                }
+            }
+        }
+        HAL_Delay(5);
     }
-
-    if(bno->shtp_data[0] != 0xF8)
-    {
-        return false; /* ÊÕµ½µÄ²»ÊÇProduct IDÏìÓ¦,ÑéÖ¤Ê§°Ü*/
-    }
-
-    bno->is_initialized = 1;
-
-    return true;
+    return false;
 }
 /**
- * ·¢ËÍSet Feature Command£¬Ê¹ÄÜÖ¸¶¨´«¸ĞÆ÷°´interval_us¼ä¸ôÉÏ±¨Êı¾İ
+ * å‘é€Set Feature Commandï¼Œä½¿èƒ½æŒ‡å®šä¼ æ„Ÿå™¨æŒ‰interval_usé—´éš”ä¸ŠæŠ¥æ•°æ®
  */
 static void BNO080_SetFeatureCommand(BSP_BNO080_t bno, uint8_t report_id, uint32_t interval_us)
 {
     memset(bno->shtp_data, 0 ,17);
 
     bno->shtp_data[0] = 0xFD;         /* Set Feature Command */
-    bno->shtp_data[1] = report_id;    /* Ä¿±ê´«¸ĞÆ÷report ID */
+    bno->shtp_data[1] = report_id;    /* ç›®æ ‡ä¼ æ„Ÿå™¨report ID */
     
-    /* ÉÏ±¨¼ä¸ô(Î¢Ãë) */
+    /* ä¸ŠæŠ¥é—´éš”(å¾®ç§’) */
     bno->shtp_data[5] = (uint8_t)(interval_us);
     bno->shtp_data[6] = (uint8_t)(interval_us >> 8);
     bno->shtp_data[7] = (uint8_t)(interval_us >> 16);
@@ -185,7 +194,7 @@ static void BNO080_SetFeatureCommand(BSP_BNO080_t bno, uint8_t report_id, uint32
 }
 
 /**
- * ½«Q¸ñÊ½¶¨µãÊı×ª»»Îª¸¡µãÊı real = raw * 2(-q_point)
+ * å°†Qæ ¼å¼å®šç‚¹æ•°è½¬æ¢ä¸ºæµ®ç‚¹æ•° real = raw * 2(-q_point)
  */
 static float BNO080_QToFloat(int32_t raw, uint8_t q_point)
 {
@@ -194,8 +203,8 @@ static float BNO080_QToFloat(int32_t raw, uint8_t q_point)
 }
 
 /**
- * ½âÎöÒÑ¾­¶ÁÈështp_dataµÄ´«¸ĞÆ÷ÉÏ±¨Êı¾İ
- * ¹Ì¶¨Æ«ÒÆ£º[0]=0xFB [1-4]=Ê±¼ä´Á [5]=ReportID [6]=ĞòÁĞºÅ [7]=status [9,10,12,13,14,15,16]=Êı¾İ
+ * è§£æå·²ç»è¯»å…¥shtp_dataçš„ä¼ æ„Ÿå™¨ä¸ŠæŠ¥æ•°æ®
+ * å›ºå®šåç§»ï¼š[0]=0xFB [1-4]=æ—¶é—´æˆ³ [5]=ReportID [6]=åºåˆ—å· [7]=status [9,10,12,13,14,15,16]=æ•°æ®
  */
 static void BNO080_ParseInputReport(BSP_BNO080_t bno)
 {
@@ -204,7 +213,7 @@ static void BNO080_ParseInputReport(BSP_BNO080_t bno)
 
     if(bno->shtp_data[0] != 0xFB)
     {
-        return; /* ²»ÊÇ´«¸ĞÆ÷ÉÏ±¨°ü£¬ºöÂÔ */
+        return; /* ä¸æ˜¯ä¼ æ„Ÿå™¨ä¸ŠæŠ¥åŒ…ï¼Œå¿½ç•¥ */
     }
 
     report_id = bno->shtp_data[5];
@@ -238,7 +247,7 @@ static void BNO080_ParseInputReport(BSP_BNO080_t bno)
             bno->quat_accuracy = bno->shtp_data[7] & 0x03U;
             break;
     default:
-        break;/* Î´Öªreport ID, ºöÂÔ */
+        break;/* æœªçŸ¥report ID, å¿½ç•¥ */
     }
 }
 
@@ -256,7 +265,7 @@ void BSP_BNO080_EnableGyro(BSP_BNO080_t bno, uint16_t interval_ms)
 {
     BNO080_SetFeatureCommand(bno, BNO080_REPORTID_GYROSCOPE, (uint32_t)interval_ms * 1000U);
 }
-
+/* æœ‰æ•°æ®å‡†å¤‡å¥½äº†ï¼Œé€šè¿‡INTå¼•è„šä¸­æ–­å°†æ ‡å¿—ä½ç½®ä¸€ */
 void BSP_BNO080_INT_Callback(BSP_BNO080_t bno)
 {
     bno->data_ready_flag = 1;

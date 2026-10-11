@@ -11,6 +11,8 @@ struct bsp_usart
     /* DMA缓冲区 */
     uint8_t     *rx_buffer;
     uint16_t    rx_buffer_size;
+    /* 保存自动重启接收的结果 */
+    volatile HAL_StatusTypeDef rx_restart_status;
     /* 回调函数 */
     void (*rx_callback)(uint8_t *data, uint16_t len);
     /* 状态标志,检测是否完成初始化 */
@@ -30,6 +32,8 @@ void BSP_USART_SendByte(BSP_USART_t usart, uint8_t data);
 void BSP_USART_SendData(BSP_USART_t usart, uint8_t *data, uint16_t len);
 void BSP_USART_Printf(BSP_USART_t usart, const char *format,...);
 
+/* 启动 DMA 接收，并检测串口空闲事件 */
+HAL_StatusTypeDef BSP_USART_StartReceiveToIdle(BSP_USART_t usart);
 
 
 #endif /* __BSP_USART_H__ */

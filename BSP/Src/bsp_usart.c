@@ -14,6 +14,7 @@ void BSP_USART_Init(BSP_USART_t usart, UART_HandleTypeDef *huart )
     usart->rx_buffer_size = 0;
     usart->rx_callback = NULL;
     usart->is_initialized = 1;
+    usart->rx_restart_status = HAL_OK;
 }
 /* 设置接收回调函数 */
 void BSP_USART_SetRxCallback(BSP_USART_t usart, void (*callback)(uint8_t *data, uint16_t len))
@@ -65,9 +66,68 @@ int fputc(int ch, FILE *f)
     BSP_USART_SendByte(debug_uart, (uint8_t)ch);
     return ch;
 }
+/* DMA中断接收 */
+HAL_StatusTypeDef BSP_USART_StartReceiveToIdle(BSP_USART_t usart)
+{
+    HAL_StatusTypeDef status;
 
+    /* 检查串口对象 */
+    if(usart == NULL || usart->is_initialized == 0U)
+    {
+        return HAL_ERROR;
+    }
 
+    /* 检测DMA配置 */
+    if(usart->huart == NULL || usart->huart->hdmarx == NULL)
+    {
+        return HAL_ERROR;
+    }
 
+    /* 检测有效接收缓冲区 */
+    if(usart->rx_buffer == NULL || usart->rx_buffer_size == 0U)
+    {
+        return HAL_ERROR;
+    }
+
+    status = HAL_UARTEx_ReceiveToIdle_DMA(usart->huart, usart->rx_buffer, usart->rx_buffer_size);
+
+    if(status == HAL_OK)
+    {
+        /* 关闭半传输中断，保留空闲和接收满事件 */
+        __HAL_DMA_DISABLE_IT(usart->huart->hdmarx, DMA_IT_HT);
+    }
+    return status;
+}
+/* 在接收空闲或缓冲区收满时调用 */
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
+{
+    BSP_USART_t usart = motor_uart;
+
+    if(huart == NULL || usart == NULL || usart->is_initialized == 0U || huart != usart->huart)
+    {
+        return;
+    }
+
+    /* 半传输事件不结束本次接收 */
+    if(HAL_UARTEx_GetRxEventType(huart) == HAL_UART_RXEVENT_HT)
+    {
+        return;
+    }
+
+    if(usart->rx_buffer == NULL || size == 0U || size > usart->rx_buffer_size)
+    {
+        return;
+    }
+
+    /* 先交接数据，再允许 DMA 重用缓冲区 */
+    if(usart->rx_callback != NULL)
+    {
+        usart->rx_callback(usart->rx_buffer, size);
+    }
+
+    /* Normal 模式需要重新启动接收 */
+    usart->rx_restart_status = BSP_USART_StartReceiveToIdle(usart);
+}
 
 
 

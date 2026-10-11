@@ -1,13 +1,14 @@
 #ifndef __BOARD_H__
 #define __BOARD_H__
 
+#include <stdio.h>
+
 #include "main.h"
 #include "bsp_led.h"
 #include "bsp_usart.h"
 #include "usart.h"
 #include "bsp_bno080.h"
 #include "i2c.h"
-#include <stdio.h>
 #include "bsp_oled.h"
 #include "spi.h"
 #include "bsp_power.h"
@@ -26,6 +27,9 @@ extern BSP_BNO080_t imu;
 extern BSP_OLED_t oled;
 
 extern BSP_X42S_t motor1;
+extern BSP_X42S_t motor2;
+extern BSP_X42S_t motor3;
+extern BSP_X42S_t motor4;
 
 void Board_Init(void);
 
