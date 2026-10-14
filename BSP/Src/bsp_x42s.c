@@ -60,7 +60,7 @@ HAL_StatusTypeDef BSP_X42S_Enable(BSP_X42S_t motor, uint8_t enable)
 
     return HAL_UART_Transmit(motor->usart->huart, command,sizeof(command), 100U);
 }
-
+/* 控制电机速度 */
 HAL_StatusTypeDef BSP_X42S_SetSpeed(BSP_X42S_t motor, BSP_X42S_Direction_t direction, uint16_t speed_rpm, uint8_t acceleration)
 {
     uint8_t command[8];
@@ -94,3 +94,49 @@ HAL_StatusTypeDef BSP_X42S_SetSpeed(BSP_X42S_t motor, BSP_X42S_Direction_t direc
 
     return HAL_UART_Transmit(motor->usart->huart, command, sizeof(command), 100U);
 }
+void BSP_X42S_ParserInit(BSP_X42S_Parser_t *parser)
+{
+    if(parser == NULL)
+    {
+        return;
+    }
+
+    parser->used = 0U;
+}
+/* 解析电机发送的数据 */
+bool BSP_X42S_ParseByte(BSP_X42S_Parser_t *parser, uint8_t byte, BSP_X42S_Response_t *response)
+{
+    if(parser == NULL || response == NULL)
+    {
+        return false;
+    }
+
+    if(parser->used >= sizeof(parser->buffer))
+    {
+        parser->used = 0U;
+    }
+
+    parser->buffer[parser->used++] = byte;
+
+    if(parser->used < sizeof(parser->buffer))
+    {
+        return false;
+    }
+    /* 电机有效应答，4个字节，buffer[0]电机地址，buffer[1]功能码(0xF3或0xF6)，buffer[2]状态，buffer[3]尾帧 */
+    if(parser->buffer[0] != 0U && (parser->buffer[1] == 0xF3U || parser->buffer[1] == 0xF6U) && parser->buffer[3] == 0x6BU)
+    {
+        response->address = parser->buffer[0];
+        response->function = parser->buffer[1];
+        response->status = parser->buffer[2];
+        parser->used = 0U;
+        return true;
+    }
+
+    /* 不匹配时保留后三个字节，继续查找应答 */
+    parser->buffer[0] = parser->buffer[1];
+    parser->buffer[1] = parser->buffer[2];
+    parser->buffer[2] = parser->buffer[3];
+    parser->used = 3U;
+    return false;
+}
+
