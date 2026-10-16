@@ -29,6 +29,7 @@
 #include <string.h>
 #include "board.h"
 #include "app_tasks.h"
+#include "log.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -197,7 +198,7 @@ void StartSensor(void *argument)
    if(BSP_BNO080_DataAvailable(imu))
    {
        BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
-       printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n", qi, qj, qk, qreal);
+       Log_Printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n", qi, qj, qk, qreal);
    }
     osDelay(1000);
   }
@@ -223,7 +224,7 @@ void StartUI(void *argument)
 
   if (BSP_OLED_Update(oled) != HAL_OK)
   {
-    printf("OLED update FAIL\r\n");
+    Log_Printf("OLED update FAIL\r\n");
   }
 
     for(;;)

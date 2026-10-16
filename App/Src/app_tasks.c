@@ -1,6 +1,7 @@
 #include "app_tasks.h"
 #include "board.h"
 #include "cmsis_os.h"
+#include "log.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -24,6 +25,12 @@ static void StartMotorRxTask(void *argument);
 
 void App_RTOS_Init(void)
 {
+    if(!Log_Init())
+    {
+        Error_Handler();
+        return;
+    }
+
     motor_rx_queue = osMessageQueueNew(8U, sizeof(MotorRxChunk_t), NULL);
 
     if (motor_rx_queue == NULL)
@@ -63,7 +70,7 @@ static void StartMotorRxTask(void *argument)
     BSP_X42S_ParserInit(&parser);
     /* 任务运行后再启动 DMA，确保调度器和队列已经运行 */
     status = BSP_USART_StartReceiveToIdle(motor_uart);
-    printf("Motor RX DMA start:%d\r\n", (int)status);
+    Log_Printf("Motor RX DMA start:%d\r\n", (int)status);
 
     for (;;)
     {
@@ -76,9 +83,9 @@ static void StartMotorRxTask(void *argument)
                 /* 把完整应答交给控制任务 */
                 if(osMessageQueuePut(motor_ack_queue, &response, 0U, 0U) != osOK)
                 {
-                    printf("Motor ACK queue put FAIL\r\n");
+                    Log_Printf("Motor ACK queue put FAIL\r\n");
                 }
-                printf("Motor ACK addr:%u function:0x%02X status:0x%02X\r\n",
+                Log_Printf("Motor ACK addr:%u function:0x%02X status:0x%02X\r\n",
                       (unsigned int)response.address,
                       (unsigned int)response.function,
                       (unsigned int)response.status);
@@ -87,14 +94,14 @@ static void StartMotorRxTask(void *argument)
         }
         else
         {
-            printf("RX state:0x%02X remaining:%lu error:0x%08lX\r\n",
+            Log_Printf("RX state:0x%02X remaining:%lu error:0x%08lX\r\n",
                    (unsigned int)motor_uart->huart->RxState,
                    (unsigned long)__HAL_DMA_GET_COUNTER(
                        motor_uart->huart->hdmarx),
                    (unsigned long)HAL_UART_GetError(
                        motor_uart->huart));
 
-            printf("RX restart:%d dropped:%lu\r\n",
+            Log_Printf("RX restart:%d dropped:%lu\r\n",
                    (int)motor_uart->rx_restart_status,
                    (unsigned long)motor_rx_drop_count);
         }
@@ -185,11 +192,11 @@ void App_ControlTask(void *argument)
     {
         osMessageQueueReset(motor_ack_queue);
         status = BSP_X42S_Enable(motors[i], 1U);
-        printf("Motor %u enable TX:%d\r\n",(unsigned int)(i + 1U), (int)status);
+        Log_Printf("Motor %u enable TX:%d\r\n",(unsigned int)(i + 1U), (int)status);
         if(status == HAL_OK)
         {
             status = Motor_WaitAck(motors[i]->address, 0xF3U, ack_timeout);
-            printf("Motor %u enable confirm:%d\r\n", (unsigned int)motors[i]->address, (int)status);
+            Log_Printf("Motor %u enable confirm:%d\r\n", (unsigned int)motors[i]->address, (int)status);
         }
         if(status != HAL_OK)
         {
@@ -205,11 +212,11 @@ void App_ControlTask(void *argument)
         {
             osMessageQueueReset(motor_ack_queue);
             status = BSP_X42S_SetSpeed(motors[i], forward_direction[i], 60U, 0U);
-            printf("Motor %u speed TX:%d\r\n", (unsigned int)(i + 1), status);
+            Log_Printf("Motor %u speed TX:%d\r\n", (unsigned int)(i + 1), status);
             if(status == HAL_OK)
             {
                 status = Motor_WaitAck(motors[i]->address, 0xF6U, ack_timeout);
-                printf("Motor %u speed confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
+                Log_Printf("Motor %u speed confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
             }
             if(status != HAL_OK)
             {
@@ -228,11 +235,11 @@ void App_ControlTask(void *argument)
     {
         osMessageQueueReset(motor_ack_queue);
         status = BSP_X42S_SetSpeed(motors[i], forward_direction[i], 0U, 0U);
-        printf("Motor %u stop TX:%d\r\n", (unsigned int)(i + 1U), (int)status);
+        Log_Printf("Motor %u stop TX:%d\r\n", (unsigned int)(i + 1U), (int)status);
         if(status == HAL_OK)
         {
             status = Motor_WaitAck(motors[i]->address, 0xF6U, ack_timeout);
-            printf("Motor %u stop confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
+            Log_Printf("Motor %u stop confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
         }
         osDelay(10);
     }
@@ -242,11 +249,11 @@ void App_ControlTask(void *argument)
     {
         osMessageQueueReset(motor_ack_queue);
         status = BSP_X42S_Enable(motors[i], 0U);
-        printf("Motor %u disable TX%d\r\n", (unsigned int)(i + 1U), (int)status);
+        Log_Printf("Motor %u disable TX%d\r\n", (unsigned int)(i + 1U), (int)status);
         if(status == HAL_OK)
         {
             status = Motor_WaitAck(motors[i]->address, 0xF3U, ack_timeout);
-            printf("Motor %u disable confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
+            Log_Printf("Motor %u disable confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
         }
         osDelay(10);
     }
