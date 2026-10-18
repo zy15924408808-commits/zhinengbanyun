@@ -2,6 +2,7 @@
 #include "board.h"
 #include "cmsis_os.h"
 #include "log.h"
+#include "app_chassis.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -169,19 +170,13 @@ static HAL_StatusTypeDef Motor_WaitAck(uint8_t address, uint8_t function, uint32
 void App_ControlTask(void *argument)
 {
     BSP_X42S_t motors[4] = {motor1, motor2, motor3, motor4};
-    /* 各轮朝车体前进方向滚动时的电机方向 */
-    BSP_X42S_Direction_t forward_direction[4] =
-    {
-        BSP_X42S_CW,
-        BSP_X42S_CCW,
-        BSP_X42S_CW,
-        BSP_X42S_CCW,
-    };
     HAL_StatusTypeDef status;
     uint8_t i;
     uint8_t failed;
     /* 内核每秒1000tick，等待上限200ms*/
     uint32_t ack_timeout = 200U;
+
+    App_Chassis_Init();
 
     /* 等待电机上电启动 */
     osDelay(2000);
@@ -205,19 +200,21 @@ void App_ControlTask(void *argument)
         }
         osDelay(10);
     }
-    /*全部使能发送成功后，下发前进速度*/
+    /*使用底盘接口让四轮共同前进*/
     if(failed == 0U)
     {
         for(i = 0U; i < 4U; i++)
         {
             osMessageQueueReset(motor_ack_queue);
-            status = BSP_X42S_SetSpeed(motors[i], forward_direction[i], 60U, 0U);
-            Log_Printf("Motor %u speed TX:%d\r\n", (unsigned int)(i + 1), status);
+            status = App_Chassis_SetOneWheelRpm(i, 60);
+            Log_Printf("Motor %u speed TX:%d\r\n", (unsigned int)motors[i]->address, (int)status);
             if(status == HAL_OK)
             {
                 status = Motor_WaitAck(motors[i]->address, 0xF6U, ack_timeout);
-                Log_Printf("Motor %u speed confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
+                Log_Printf("Motor %u speed confirm:%d\r\n", (unsigned int)motors[i]->address, (int)status);
+
             }
+
             if(status != HAL_OK)
             {
                 failed = 1U;
@@ -226,24 +223,28 @@ void App_ControlTask(void *argument)
             osDelay(10);
         }
     }
+
     if(failed == 0U)
     {
         osDelay(3000);
     }
+
     /* 正常结束或发送异常，都尝试停止电机 */
     for(i = 0U; i < 4U; i++)
     {
         osMessageQueueReset(motor_ack_queue);
-        status = BSP_X42S_SetSpeed(motors[i], forward_direction[i], 0U, 0U);
-        Log_Printf("Motor %u stop TX:%d\r\n", (unsigned int)(i + 1U), (int)status);
+        
+        status = App_Chassis_SetOneWheelRpm(i, 0);
+        Log_Printf("Motor %u stop TX:%d\r\n", (unsigned int)motors[i]->address, (int)status);
         if(status == HAL_OK)
         {
             status = Motor_WaitAck(motors[i]->address, 0xF6U, ack_timeout);
-            Log_Printf("Motor %u stop confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
+            Log_Printf("Motor %u stop confirm:%d\r\n",(unsigned int)motors[i]->address, (int)status);
+
         }
-        osDelay(10);
     }
     osDelay(10);
+
     /* 关闭全部电机驱动 */
     for(i = 0U; i < 4U; i++)
     {

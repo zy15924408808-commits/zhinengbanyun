@@ -1855,6 +1855,11 @@
               <FileType>1</FileType>
               <FilePath>..\App\Src\app_tasks.c</FilePath>
             </File>
+            <File>
+              <FileName>app_chassis.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Src\app_chassis.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
