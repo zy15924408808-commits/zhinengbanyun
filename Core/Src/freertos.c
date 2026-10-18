@@ -164,7 +164,6 @@ void StartDefaultTask(void *argument)
   }
   /* USER CODE END StartDefaultTask */
 }
-
 /* USER CODE BEGIN Header_StartControl */
 /**
 * @brief Function implementing the TaskControl thread.
@@ -189,18 +188,32 @@ void StartControl(void *argument)
 void StartSensor(void *argument)
 {
   /* USER CODE BEGIN StartSensor */
-  float qi, qj, qk, qreal;
-
+  float qi;
+  float qj;
+  float qk;
+  float qreal;
+  float yaw_deg;
   BSP_BNO080_EnableRotationVector(imu, 100);
   /* Infinite loop */
   for(;;)
   {
-   if(BSP_BNO080_DataAvailable(imu))
-   {
-       BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
-       Log_Printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n", qi, qj, qk, qreal);
-   }
-    osDelay(1000);
+      if(BSP_BNO080_DataAvailable(imu))
+      {
+        BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
+
+        Log_Printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n",
+                   qi, qj, qk, qreal);
+
+        if(BSP_BNO080_GetYaw(imu, &yaw_deg))
+        {
+            Log_Printf("Yaw: %.2f deg\r\n", yaw_deg);
+        }
+        else
+        {
+            Log_Printf("Yaw invalid\r\n");
+        }
+      }
+      osDelay(100);
   }
   /* USER CODE END StartSensor */
 }

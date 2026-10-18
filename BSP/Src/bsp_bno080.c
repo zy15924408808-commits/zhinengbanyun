@@ -1,5 +1,6 @@
 #include "bsp_bno080.h"
 #include <string.h>
+#include <math.h>
 
 static bool BNO080_SendPacket(BSP_BNO080_t bno, uint8_t channel, uint8_t data_length);
 static bool BNO080_ReceivePacket(BSP_BNO080_t bno);
@@ -310,4 +311,46 @@ void BSP_BNO080_GetGyro(BSP_BNO080_t bno, float *x, float *y, float *z)
     *x = bno->gyro_x;
     *y = bno->gyro_y;
     *z = bno->gyro_z;
+}
+
+bool BSP_BNO080_GetYaw(BSP_BNO080_t bno, float *yaw_deg)
+{
+    float qx;
+    float qy;
+    float qz;
+    float qw;
+    float norm_sq;
+    float norm;
+    float yaw_rad;
+
+    if(bno == NULL || yaw_deg == NULL || bno->is_initialized == 0U)
+    {
+        return false;
+    }
+
+    qx = bno->quat_i;
+    qy = bno->quat_j;
+    qz = bno->quat_k;
+    qw = bno->quat_real;
+
+    norm_sq = qx * qx + qy * qy + qz * qz + qw * qw;
+
+    /* 启动初期四元数为全零，或者数据异常时拒绝计算 */
+    if(norm_sq < 0.5f || norm_sq > 1.5f)
+    {
+        return false;
+    }
+
+    /* 归一化，避免模长误差影响角度 */
+    norm = sqrtf(norm_sq);
+    qx /= norm;
+    qy /= norm;
+    qz /= norm;
+    qw /= norm;
+
+    yaw_rad = atan2f(2.0f * (qw *qz + qx * qy),1.0f - 2.0f * (qy * qy + qz * qz));
+
+    *yaw_deg = yaw_rad * 57.2957795f;
+
+    return true;
 }

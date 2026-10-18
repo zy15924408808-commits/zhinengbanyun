@@ -71,4 +71,7 @@ void BSP_BNO080_GetQuaternion(BSP_BNO080_t bno, float *i, float *j, float *k, fl
 void BSP_BNO080_GetAccel(BSP_BNO080_t bno, float *x, float *y, float *z);
 void BSP_BNO080_GetGyro(BSP_BNO080_t bno, float *x, float *y, float *z);
 
+/* 检查四元数是否有效，并计算绕Z轴的航向角，单位：度 */
+bool BSP_BNO080_GetYaw(BSP_BNO080_t bno, float *yaw_deg);
+
 #endif /* __BSP_BNO080_H__ */
