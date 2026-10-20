@@ -27,4 +27,14 @@ HAL_StatusTypeDef App_Chassis_Stop(void);
 /* 设置指定轮子的带符号转速，index: 0左前 1右前 2左后 3右后 */
 HAL_StatusTypeDef App_Chassis_SetOneWheelRpm(uint8_t index, int16_t rpm);
 
+/* 
+ * 根据运动分量计算四轮转速
+ * forward_rpm: 正数前进，负数后退
+ * left_rpm: 正数左移，负数右移
+ * turn_rpm: 正数左转，负数右转
+ * wheel_rpm: 输出数组，顺序为左前、右前、左后、右后
+*/
+HAL_StatusTypeDef App_Chassis_CalcWheelRpm(int16_t forward_rpm, int16_t left_rpm, int16_t turn_rpm, int16_t wheel_rpm[4]);
+
+
 #endif /* APP_CHASSIS_H */

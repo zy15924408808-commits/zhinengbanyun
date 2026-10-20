@@ -89,3 +89,36 @@ HAL_StatusTypeDef App_Chassis_Stop(void)
     return App_Chassis_SetWheelRpm(0, 0, 0, 0);
 }
 
+HAL_StatusTypeDef App_Chassis_CalcWheelRpm(int16_t forward_rpm, int16_t left_rpm, int16_t turn_rpm, int16_t wheel_rpm[4])
+{
+    int32_t rpm[4];
+    uint8_t i;
+
+    if(wheel_rpm == NULL)
+    {
+        return HAL_ERROR;
+    }
+
+    /* 顺序：左前、右前、左后、右后 */
+    rpm[0] = (int32_t)forward_rpm - left_rpm - turn_rpm;
+    rpm[1] = (int32_t)forward_rpm + left_rpm + turn_rpm;
+    rpm[2] = (int32_t)forward_rpm + left_rpm - turn_rpm;
+    rpm[3] = (int32_t)forward_rpm - left_rpm + turn_rpm;
+
+    /* 先检查全部轮速，超限则返回错误 */
+    for(i = 0U; i < 4U; i++)
+    {
+        if(rpm[i] < -3000 || rpm[i] > 3000)
+        {
+            return  HAL_ERROR;
+        }
+    }
+
+    /* 全部合法后，再写入输出数组 */
+    for(i = 0U; i < 4U; i++)
+    {
+        wheel_rpm[i] = (int16_t)rpm[i];
+    }
+
+    return HAL_OK;
+}

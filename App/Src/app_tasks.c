@@ -170,6 +170,7 @@ static HAL_StatusTypeDef Motor_WaitAck(uint8_t address, uint8_t function, uint32
 void App_ControlTask(void *argument)
 {
     BSP_X42S_t motors[4] = {motor1, motor2, motor3, motor4};
+    int16_t test_rpm[4] = {0};
     HAL_StatusTypeDef status;
     uint8_t i;
     uint8_t failed;
@@ -200,13 +201,24 @@ void App_ControlTask(void *argument)
         }
         osDelay(10);
     }
-    /*使用底盘接口让四轮共同前进*/
+    /* 根据运动分量计算轮速：先验证左横移 */
+    status = App_Chassis_CalcWheelRpm(30, 30, 0, test_rpm);
+    if(status != HAL_OK)
+    {
+        failed = 1U;
+        Log_Printf("Chassis wheel calculation FAIL\r\n");
+    }
+    else
+    {
+        Log_Printf("Wheel RPM: %d %d %d %d\r\n", (int)test_rpm[0], (int)test_rpm[1], (int)test_rpm[2], (int)test_rpm[3]);
+    }
+    /* 计算和使能均成功后，逐台发送轮速 */
     if(failed == 0U)
     {
         for(i = 0U; i < 4U; i++)
         {
             osMessageQueueReset(motor_ack_queue);
-            status = App_Chassis_SetOneWheelRpm(i, 60);
+            status = App_Chassis_SetOneWheelRpm(i, test_rpm[i]);
             Log_Printf("Motor %u speed TX:%d\r\n", (unsigned int)motors[i]->address, (int)status);
             if(status == HAL_OK)
             {
