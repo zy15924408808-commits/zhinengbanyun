@@ -240,6 +240,7 @@ static void BNO080_ParseInputReport(BSP_BNO080_t bno)
             break;
 
         case BNO080_REPORTID_ROTATION_VECTOR:
+        case BNO080_REPORTID_GAME_ROTATION_VECTOR:
             raw4 = (int16_t)(((uint16_t)bno->shtp_data[16] << 8) | bno->shtp_data[15]);
             bno->quat_i    = BNO080_QToFloat(raw1, BNO080_Q_POINT_ROTATION_VECTOR);
             bno->quat_j    = BNO080_QToFloat(raw2, BNO080_Q_POINT_ROTATION_VECTOR);
@@ -255,6 +256,11 @@ static void BNO080_ParseInputReport(BSP_BNO080_t bno)
 void BSP_BNO080_EnableRotationVector(BSP_BNO080_t bno, uint16_t interval_ms)
 {
     BNO080_SetFeatureCommand(bno, BNO080_REPORTID_ROTATION_VECTOR, (uint32_t)interval_ms * 1000U);
+}
+
+void BSP_BNO080_EnableGameRotationVector(BSP_BNO080_t bno, uint16_t interval_ms)
+{
+    BNO080_SetFeatureCommand(bno, BNO080_REPORTID_GAME_ROTATION_VECTOR, (uint32_t)interval_ms * 1000U);
 }
 
 void BSP_BNO080_EnableAccelerometer(BSP_BNO080_t bno, uint16_t interval_ms)

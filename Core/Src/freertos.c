@@ -193,7 +193,7 @@ void StartSensor(void *argument)
   float qk;
   float qreal;
   float yaw_deg;
-  BSP_BNO080_EnableRotationVector(imu, 100);
+  BSP_BNO080_EnableGameRotationVector(imu, 100);
   /* Infinite loop */
   for(;;)
   {

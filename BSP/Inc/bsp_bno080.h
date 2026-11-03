@@ -14,13 +14,14 @@
 #define BNO080_CHANNEL_WAKE_REPORTS 4
 #define BNO080_CHANNEL_GYRO         5
 
-#define BNO080_REPORTID_ACCELEROMETER 0x01       /* 加速度计ID */
-#define BNO080_REPORTID_GYROSCOPE     0x02       /* 陀螺仪ID */
-#define BNO080_REPORTID_ROTATION_VECTOR 0x05     /* 旋转向量ID */
+#define BNO080_REPORTID_ACCELEROMETER 0x01          /* 加速度计ID */
+#define BNO080_REPORTID_GYROSCOPE     0x02          /* 陀螺仪ID */
+#define BNO080_REPORTID_ROTATION_VECTOR 0x05        /* 旋转向量ID */
+#define BNO080_REPORTID_GAME_ROTATION_VECTOR 0x08   /* 不使用磁力计 */
 
-#define BNO080_Q_POINT_ACCELEROMETER  8          /* 加速度计Q格式小数点位置 */
-#define BNO080_Q_POINT_GYROSCOPE      9          /* 陀螺仪Q格式小数点位置 */
-#define BNO080_Q_POINT_ROTATION_VECTOR 14          /* 旋转向量Q格式小数点位置 */
+#define BNO080_Q_POINT_ACCELEROMETER  8             /* 加速度计Q格式小数点位置 */
+#define BNO080_Q_POINT_GYROSCOPE      9             /* 陀螺仪Q格式小数点位置 */
+#define BNO080_Q_POINT_ROTATION_VECTOR 14           /* 旋转向量Q格式小数点位置 */
 
 /* BNO080对象 */
 struct bsp_bno080
@@ -65,6 +66,9 @@ bool BSP_BNO080_DataAvailable(BSP_BNO080_t bno);
 void BSP_BNO080_EnableRotationVector(BSP_BNO080_t bno, uint16_t interval_ms);
 void BSP_BNO080_EnableAccelerometer(BSP_BNO080_t bno, uint16_t interval_ms);
 void BSP_BNO080_EnableGyro(BSP_BNO080_t bno, uint16_t interval_ms);
+
+/* 使能不使用磁力计的旋转向量，interval_ms 单位为毫秒 */
+void BSP_BNO080_EnableGameRotationVector(BSP_BNO080_t bno, uint16_t interval_ms);
 
 /* 读取已解析好的传感器数据(浮点值) */
 void BSP_BNO080_GetQuaternion(BSP_BNO080_t bno, float *i, float *j, float *k, float *real);
