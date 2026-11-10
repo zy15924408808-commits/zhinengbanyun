@@ -7,7 +7,6 @@ uint8_t X42S_BuildEnable(uint8_t address, bool enable, uint8_t out[6])
     {
         return 0U;
     }
-    /**/
     out[0] = address;
     out[1] = X42S_FUNC_ENABLE;
     out[2] = 0xABU;
