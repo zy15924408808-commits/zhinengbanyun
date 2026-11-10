@@ -41,7 +41,7 @@ void App_RTOS_Init(void)
     }
 
     /* 暂存已经解析的电机应答 */
-    motor_ack_queue = osMessageQueueNew(8U, sizeof(BSP_X42S_Response_t), NULL);
+    motor_ack_queue = osMessageQueueNew(8U, sizeof(X42S_Response_t), NULL);
     if(motor_ack_queue == NULL)
     {
         Error_Handler();
@@ -65,10 +65,10 @@ static void StartMotorRxTask(void *argument)
     HAL_StatusTypeDef status;
     uint16_t i;
 
-    BSP_X42S_Parser_t parser;
-    BSP_X42S_Response_t response;
+    X42S_Parser_t parser;
+    X42S_Response_t response;
 
-    BSP_X42S_ParserInit(&parser);
+    X42S_ParserInit(&parser);
     /* 任务运行后再启动 DMA，确保调度器和队列已经运行 */
     status = BSP_USART_StartReceiveToIdle(motor_uart);
     Log_Printf("Motor RX DMA start:%d\r\n", (int)status);
@@ -79,7 +79,7 @@ static void StartMotorRxTask(void *argument)
         {
           for (i = 0U; i < message.len; i++)
           {
-            if (BSP_X42S_ParseByte(&parser,message.data[i],&response))
+            if (X42S_ParseByte(&parser,message.data[i],&response))
             {
                 /* 把完整应答交给控制任务 */
                 if(osMessageQueuePut(motor_ack_queue, &response, 0U, 0U) != osOK)
@@ -132,7 +132,7 @@ static void MotorUartRxCallback(uint8_t *data, uint16_t len)
 /*等待指定地址、功能码的应答：超时单位为内核 tick */
 static HAL_StatusTypeDef Motor_WaitAck(uint8_t address, uint8_t function, uint32_t timeout_ticks)
 {
-    BSP_X42S_Response_t response;
+    X42S_Response_t response;
     osStatus_t queue_status;
     uint32_t start_tick;
     uint32_t elapsed;
