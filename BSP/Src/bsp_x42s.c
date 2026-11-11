@@ -49,7 +49,6 @@ HAL_StatusTypeDef BSP_X42S_Init(BSP_X42S_t motor, BSP_USART_t usart, uint8_t add
     return HAL_OK;
 }
 
-
 /* 控制电机驱动使能 */
 HAL_StatusTypeDef BSP_X42S_Enable(BSP_X42S_t motor, uint8_t enable)
 {
@@ -74,6 +73,19 @@ HAL_StatusTypeDef BSP_X42S_SetSpeed(BSP_X42S_t motor, BSP_X42S_Direction_t direc
 
     /* 方向、转速范围由协议层检查，不合法时返回长度0 */
     return BSP_X42S_Send(motor, frame, X42S_BuildSpeed(motor->address, (uint8_t)direction, speed_rpm, acceleration, frame));
+}
+
+/* 发送读取实时位置请求：应答由接收任务解析，功能码为 0x36 */
+HAL_StatusTypeDef BSP_X42S_RequestPosition(BSP_X42S_t motor)
+{
+    uint8_t frame[3];
+
+    if(!BSP_X42S_IsReady(motor))
+    {
+        return HAL_ERROR;
+    }
+
+    return BSP_X42S_Send(motor, frame, X42S_BuildReadPosition(motor->address, frame));
 }
 
 

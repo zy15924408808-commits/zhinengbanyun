@@ -200,17 +200,19 @@ void StartSensor(void *argument)
       if(BSP_BNO080_DataAvailable(imu))
       {
         BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
-
+        /* BNO080输出的姿态四元数 */
         Log_Printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n",
                    qi, qj, qk, qreal);
 
         if(BSP_BNO080_GetYaw(imu, &yaw_deg))
         {
-            Log_Printf("Yaw: %.2f deg\r\n", yaw_deg);
+          /* 四元数计算出的航向角 */
+          Log_Printf("Yaw: %.2f deg\r\n", yaw_deg);
         }
         else
         {
-            Log_Printf("Yaw invalid\r\n");
+          /* 四元数无效 */
+          Log_Printf("Yaw invalid\r\n");
         }
       }
       osDelay(100);
@@ -237,6 +239,7 @@ void StartUI(void *argument)
 
   if (BSP_OLED_Update(oled) != HAL_OK)
   {
+    /* 刷新OLED屏幕失败 */
     Log_Printf("OLED update FAIL\r\n");
   }
 
