@@ -59,10 +59,12 @@ void Board_Init(void)
     /* IMU初始化 */
     if(BSP_BNO080_Init(imu, &hi2c2, 0x4B, GPIOB, GPIO_PIN_0, GPIOA, GPIO_PIN_4))
     {
+        /* BNO080初始化成功 */
         printf("IMU init OK\n");
     }
     else
     {
+        /* BNO080初始化失败 */
         printf("IMU init FAIL\n");
     }
 
@@ -72,10 +74,12 @@ void Board_Init(void)
                      OLED_DC_GPIO_Port, OLED_DC_Pin,
                      OLED_RST_GPIO_Port, OLED_RST_Pin) == HAL_OK)
     {
+        /* OLED初始化成功 */
         printf("OLED init OK\r\n");
     }
     else
     {
+        /* OLED初始化失败 */
         printf("OLED init FAIL\r\n");
     }
 
@@ -89,10 +93,12 @@ static void Board_X42S_init(void)
     /* 左前轮：地址1 */
     if(BSP_X42S_Init(motor1, motor_uart, 1U) == HAL_OK)
     {
+        /* 电机对象和串口、地址绑定成功 */
         printf("X42S motor1 init OK\r\n");
     }
     else
     {
+        /* 电机对象和串口、地址绑定失败 */
         printf("X42S motor1 init FAIL\r\n");
     }
 

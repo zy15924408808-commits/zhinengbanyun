@@ -1,5 +1,27 @@
 #include "bsp_x42s.h"
 
+/* 检查电机对象和串口是否可用 */
+static bool BSP_X42S_IsReady(BSP_X42S_t motor)
+{
+    if(motor == NULL || motor->usart == NULL || motor->usart->huart == NULL)
+    {
+        return false;
+    }
+
+    return BSP_USART_IsInitialized(motor->usart) != 0U;
+}
+
+/* 发送一帧已经组好的命令：长度为0表示组帧失败 */
+static HAL_StatusTypeDef BSP_X42S_Send(BSP_X42S_t motor, uint8_t *frame, uint8_t len)
+{
+    if(len == 0U)
+    {
+        return HAL_ERROR;
+    }
+
+    return HAL_UART_Transmit(motor->usart->huart, frame, len, 100U);
+}
+
 /* 绑定电机使用的串口与通信地址 */
 HAL_StatusTypeDef BSP_X42S_Init(BSP_X42S_t motor, BSP_USART_t usart, uint8_t address)
 {
@@ -8,20 +30,19 @@ HAL_StatusTypeDef BSP_X42S_Init(BSP_X42S_t motor, BSP_USART_t usart, uint8_t add
     {
         return HAL_ERROR;
     }
-    
+
     /* 串口必须已经初始化 */
     if(usart->huart == NULL || BSP_USART_IsInitialized(usart) == 0U)
     {
         return HAL_ERROR;
     }
-    
+
     /* 单电机对象不使用广播地址 */
     if(address == 0U)
     {
         return HAL_ERROR;
     }
 
-    /* 绑定电机使用的串口与通信地址 */
     motor->usart = usart;
     motor->address = address;
 
@@ -31,112 +52,40 @@ HAL_StatusTypeDef BSP_X42S_Init(BSP_X42S_t motor, BSP_USART_t usart, uint8_t add
 /* 控制电机驱动使能 */
 HAL_StatusTypeDef BSP_X42S_Enable(BSP_X42S_t motor, uint8_t enable)
 {
-    uint8_t command[6];
+    uint8_t frame[6];
 
-    /* 检查电机和串口对象 */
-    if(motor == NULL || motor->usart == NULL)
+    if(!BSP_X42S_IsReady(motor) || enable > 1U)
     {
         return HAL_ERROR;
     }
-    
-    if(motor->usart->huart ==NULL || BSP_USART_IsInitialized(motor->usart) == 0U)
-    {
-        return HAL_ERROR;
-    }
-
-    /* 地址不能为广播地址，使能值只能为0或1 */
-    if(motor->address == 0U || enable > 1U)
-    {
-        return HAL_ERROR;
-    }
-
-    /* 组装Emm命令 */
-    command[0] = motor->address;
-    command[1] = 0xF3;
-    command[2] = 0xAB;
-    command[3] = enable;
-    command[4] = 0x00;
-    command[5] = 0x6B;
-
-    return HAL_UART_Transmit(motor->usart->huart, command,sizeof(command), 100U);
+    return BSP_X42S_Send(motor, frame, X42S_BuildEnable(motor->address, enable == 1U, frame));
 }
+
 /* 控制电机速度 */
 HAL_StatusTypeDef BSP_X42S_SetSpeed(BSP_X42S_t motor, BSP_X42S_Direction_t direction, uint16_t speed_rpm, uint8_t acceleration)
 {
-    uint8_t command[8];
+    uint8_t frame[8];
 
-    /* 检查电机和串口对象 */
-    if(motor == NULL || motor->usart == NULL)
+    if(!BSP_X42S_IsReady(motor))
     {
         return HAL_ERROR;
     }
 
-    if(motor->usart->huart == NULL || BSP_USART_IsInitialized(motor->usart) == 0U)
-    {
-        return HAL_ERROR;
-    }
-
-    /* 检查参数 */
-    if(motor->address == 0U || direction > BSP_X42S_CCW || speed_rpm > 3000U)
-    {
-        return HAL_ERROR;
-    }
-
-    /* 组装 Emm F6 速度命令 */
-    command[0] = motor->address;
-    command[1] = 0xF6;
-    command[2] = (uint8_t)direction;
-    command[3] = (uint8_t)(speed_rpm >> 8);
-    command[4] = (uint8_t)(speed_rpm & 0xFFU);
-    command[5] = acceleration;
-    command[6] = 0x00;
-    command[7] = 0x6B;
-
-    return HAL_UART_Transmit(motor->usart->huart, command, sizeof(command), 100U);
+    /* 方向、转速范围由协议层检查，不合法时返回长度0 */
+    return BSP_X42S_Send(motor, frame, X42S_BuildSpeed(motor->address, (uint8_t)direction, speed_rpm, acceleration, frame));
 }
-void BSP_X42S_ParserInit(BSP_X42S_Parser_t *parser)
+
+/* 发送读取实时位置请求：应答由接收任务解析，功能码为 0x36 */
+HAL_StatusTypeDef BSP_X42S_RequestPosition(BSP_X42S_t motor)
 {
-    if(parser == NULL)
+    uint8_t frame[3];
+
+    if(!BSP_X42S_IsReady(motor))
     {
-        return;
+        return HAL_ERROR;
     }
 
-    parser->used = 0U;
+    return BSP_X42S_Send(motor, frame, X42S_BuildReadPosition(motor->address, frame));
 }
-/* 解析电机发送的数据 */
-bool BSP_X42S_ParseByte(BSP_X42S_Parser_t *parser, uint8_t byte, BSP_X42S_Response_t *response)
-{
-    if(parser == NULL || response == NULL)
-    {
-        return false;
-    }
 
-    if(parser->used >= sizeof(parser->buffer))
-    {
-        parser->used = 0U;
-    }
-
-    parser->buffer[parser->used++] = byte;
-
-    if(parser->used < sizeof(parser->buffer))
-    {
-        return false;
-    }
-    /* 电机有效应答，4个字节，buffer[0]电机地址，buffer[1]功能码(0xF3或0xF6)，buffer[2]状态，buffer[3]尾帧 */
-    if(parser->buffer[0] != 0U && (parser->buffer[1] == 0xF3U || parser->buffer[1] == 0xF6U) && parser->buffer[3] == 0x6BU)
-    {
-        response->address = parser->buffer[0];
-        response->function = parser->buffer[1];
-        response->status = parser->buffer[2];
-        parser->used = 0U;
-        return true;
-    }
-
-    /* 不匹配时保留后三个字节，继续查找应答 */
-    parser->buffer[0] = parser->buffer[1];
-    parser->buffer[1] = parser->buffer[2];
-    parser->buffer[2] = parser->buffer[3];
-    parser->used = 3U;
-    return false;
-}
 
