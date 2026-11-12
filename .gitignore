@@ -41,7 +41,10 @@ Output/
 .DS_Store
 Thumbs.db
 
-# Keil 输出目录与 IDE 日志
+# Keil output dir and IDE logs
 MDK-ARM/text01_26.6.2/
 MDK-ARM/.vscode/*.log
 MDK-ARM/.vscode/*.lock
+# Host unit test binary
+# Unit test executable
+Tests/run_tests.exe
