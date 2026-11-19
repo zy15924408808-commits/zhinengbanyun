@@ -122,3 +122,19 @@ HAL_StatusTypeDef App_Chassis_CalcWheelRpm(int16_t forward_rpm, int16_t left_rpm
 
     return HAL_OK;
 }
+/* 
+ * 将电机编码器的原始计数变化量，统一转换成机器人底盘的前进方向计数变化量
+ * index:当前轮子的索引，范围为0~3
+ * raw_delta 编码器原始计数变化量
+*/
+int32_t App_Chassis_ToForwardCount(uint8_t index, int32_t raw_delta)
+{
+    if(index >= 4U)
+    {
+        return 0;
+    }
+    /* 实测：电机CW转动时计数增加，所以前进方向为CCW的轮子要取反 */
+    /* 就是电机CCW转动时编码器计数是负数，要转换为正数 */
+    return (app_chassis.forward_direction[index] == BSP_X42S_CW) ? raw_delta : -raw_delta;
+}
+

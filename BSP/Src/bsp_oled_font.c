@@ -31,6 +31,9 @@ static const uint8_t oled_font_upper[26][5] =
     {0x07,0x08,0x70,0x08,0x07}, {0x61,0x51,0x49,0x45,0x43}
 };
 
+static const uint8_t oled_font_minus[5] = {0x08,0x08,0x08,0x08,0x08};
+static const uint8_t oled_font_colon[5] = {0x00,0x36,0x36,0x00,0x00};
+static const uint8_t oled_font_dot[5]   = {0x00,0x60,0x60,0x00,0x00};
 static const uint8_t oled_font_blank[5] = {0x00,0x00,0x00,0x00,0x00};
 
 const uint8_t *BSP_OLED_Font_GetGlyph(char ch)
@@ -44,7 +47,13 @@ const uint8_t *BSP_OLED_Font_GetGlyph(char ch)
     {
         return oled_font_upper[(uint8_t)(ch - 'A')];
     }
-
+    switch (ch)
+    {
+    case '-': return oled_font_minus;
+    case ':': return oled_font_colon;
+    case '.': return oled_font_dot;
+    default:  break;
+    }
     return oled_font_blank;
 }
 

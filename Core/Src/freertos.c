@@ -30,6 +30,10 @@
 #include "board.h"
 #include "app_tasks.h"
 #include "log.h"
+#include "app_imu.h"
+#include "app_config.h"
+#include "app_status.h"
+#include "app_ui.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -200,14 +204,19 @@ void StartSensor(void *argument)
       if(BSP_BNO080_DataAvailable(imu))
       {
         BSP_BNO080_GetQuaternion(imu, &qi, &qj, &qk, &qreal);
+#if APP_LOG_IMU
         /* BNO080输出的姿态四元数 */
         Log_Printf("Quaternion: i=%.3f j=%.3f k=%.3f real=%.3f\r\n",
                    qi, qj, qk, qreal);
-
+#endif
         if(BSP_BNO080_GetYaw(imu, &yaw_deg))
         {
+          /* 发布给控制任务，里程计用它做航向 */
+          App_Imu_PublishYawDeg(yaw_deg);
+#if APP_LOG_IMU
           /* 四元数计算出的航向角 */
           Log_Printf("Yaw: %.2f deg\r\n", yaw_deg);
+#endif
         }
         else
         {
@@ -215,7 +224,6 @@ void StartSensor(void *argument)
           Log_Printf("Yaw invalid\r\n");
         }
       }
-      osDelay(100);
   }
   /* USER CODE END StartSensor */
 }
@@ -230,31 +238,34 @@ void StartSensor(void *argument)
 void StartUI(void *argument)
 {
   /* USER CODE BEGIN StartUI */
-  /* Infinite loop */
-  BSP_OLED_Fill(oled, 0x00);
+  App_OdomReport_t report;
+  uint32_t seq;
+  uint32_t last_seq = 0xFFFFFFFFU;  /* 保证上电后第一次一定会画 */
+  uint8_t ticks = 0U;
 
-  BSP_OLED_DrawString(oled, 0U, 0U, "OLED TEST");
-  BSP_OLED_DrawString(oled, 0U, 54U, "IMU OK");
-  BSP_OLED_DrawString(oled, 2U, 0U, "X42S");
-
-  if (BSP_OLED_Update(oled) != HAL_OK)
+  for(;;)
   {
-    /* 刷新OLED屏幕失败 */
-    Log_Printf("OLED update FAIL\r\n");
-  }
+      /* 只有控制任务发布了新结果才重画，避免无谓地占用 SPI */
+      seq = App_Status_GetOdom(&report);
+      if(seq != last_seq)
+      {
+          App_Ui_DrawOdom(oled, &report);
+          if(BSP_OLED_Update(oled) != HAL_OK)
+          {
+              /* 刷新OLED屏幕失败 */
+              Log_Printf("OLED update FAIL\r\n");
+          }
+          last_seq = seq;
+      }
 
-    for(;;)
-    {
-        BSP_LED_On(led1);
-        osDelay(1000);
-        BSP_LED_Off(led1);
-        BSP_LED_On(led2);
-        osDelay(1000);
-        BSP_LED_Off(led2);
-        BSP_LED_On(led3);
-        osDelay(1000);
-        BSP_LED_Off(led3);
-    }
+      /* 心跳灯：每 1 秒翻转一次，灯不闪说明 UI 任务卡住了 */
+      if(++ticks >= 5U)
+      {
+          BSP_LED_Toggle(led1);
+          ticks = 0U;
+      }
+      osDelay(200);
+  }
   /* USER CODE END StartUI */
 }
 

@@ -3,7 +3,11 @@
 #include "cmsis_os.h"
 #include "log.h"
 #include "app_chassis.h"
-#include <stdio.h>
+#include "app_config.h"
+#include "app_imu.h"
+#include "odometry.h"
+#include "app_status.h"
+#include <stdbool.h>
 #include <string.h>
 
 typedef struct
@@ -13,7 +17,7 @@ typedef struct
 }MotorRxChunk_t;
 
 static osMessageQueueId_t motor_rx_queue;
-static osMessageQueueId_t motor_ack_queue;
+static osMessageQueueId_t motor_ack_queue;          /* 保存电机应答消息的队列 */
 static volatile uint32_t motor_rx_drop_count = 0U;
 static osThreadId_t MotorRxTaskHandle;
 static const osThreadAttr_t MotorRxTask_attributes = {
@@ -40,7 +44,7 @@ void App_RTOS_Init(void)
         return;
     }
 
-    /* 暂存已经解析的电机应答 */
+    /* 创建消息队列 */
     motor_ack_queue = osMessageQueueNew(8U, sizeof(X42S_Response_t), NULL);
     if(motor_ack_queue == NULL)
     {
@@ -82,7 +86,7 @@ static void StartMotorRxTask(void *argument)
           {
             if (X42S_ParseByte(&parser,message.data[i],&response))
             {
-                /* 把完整应答交给控制任务 */
+                /* 将电机的应答消息放到motor_ack_queue队列 */
                 if(osMessageQueuePut(motor_ack_queue, &response, 0U, 0U) != osOK)
                 {
                     /* 队列满，解析好的回复放不进队列 */
@@ -90,8 +94,10 @@ static void StartMotorRxTask(void *argument)
                 }
                 if(response.function == X42S_FUNC_READ_POS)
                 {
+#if APP_LOG_MOTOR_POS
                     /* 收到0x36读位置的回复。addr是电机地址(1,2,3,4)，pos 是累计位置，65536 为一圈 */
                     Log_Printf("Motor POS addr:%u pos:%ld\r\n", (unsigned int)response.address,(long)response.position);
+#endif
                 }
                 else
                 {
@@ -218,139 +224,327 @@ static HAL_StatusTypeDef Motor_ReadPosition(BSP_X42S_t motor, uint32_t timeout_t
     return status;
 }
 
-void App_ControlTask(void *argument)
+/* ---- 直线里程计测试参数 ---- */
+#define MOTOR_ACK_TIMEOUT_MS    200U        /* 等待单条电机应答的上限 */
+#define IMU_MAX_AGE_MS          300U        /* IMU 航向超过这个时间没更新就认为失效 */
+
+#define ODOM_PERIOD_MS          20U         /* 里程计更新周期 */
+#define ODOM_LOG_EVERY          10U         /* 每10个周期（200ms）打印一次位姿 */
+
+#define ODOM_TEST_FORWARD_RPM   60          /* 前进转速，约 242 mm/s */
+#define ODOM_TEST_TARGET_MM     1000.0f     /* 走到这个距离就停 */
+#define ODOM_TEST_TIMEOUT_MS    8000U       /* 正常约4.2s走完，超时强制停车 */
+#define RAD_TO_DECIDEG          572.957795f /* 弧度换算成0.1度 */
+
+/* 
+ * 依次控制四台X42S电机使能或送轴，并且每控制一台电机，都要等待该电机返回应答，确认操作是否成功
+ */
+static HAL_StatusTypeDef Motor_SetEnableAll(uint8_t enable)
 {
-    int32_t pos_start[4] = {0};
-    int32_t pos_end[4] = {0};
-    BSP_X42S_t motors[4] = {motor1, motor2, motor3, motor4};
-    int16_t test_rpm[4] = {0};
+    /* 用于保存整个函数最终的执行结果 */
+    HAL_StatusTypeDef result = HAL_OK;
+    /* 用于保存当前正在操作的那一台电机的执行结果 */
     HAL_StatusTypeDef status;
     uint8_t i;
-    uint8_t failed;
-    /* 内核每秒1000tick，等待上限200ms*/
-    uint32_t ack_timeout = 200U;
 
-    App_Chassis_Init();
-
-    /* 等待电机上电启动 */
-    osDelay(2000);
-    failed = 0U;
-
-    /*先使能四台电机*/
     for(i = 0U; i < 4U; i++)
     {
+        /* 清空应答队列 */
         osMessageQueueReset(motor_ack_queue);
-        status = BSP_X42S_Enable(motors[i], 1U);
-        /* 使能命令发出去了 */
-        Log_Printf("Motor %u enable TX:%d\r\n",(unsigned int)(i + 1U), (int)status);
+        /* 发送电机使能指令 */
+        status = BSP_X42S_Enable(app_chassis.motor[i], enable);
+        /* 等待电机应答 */
         if(status == HAL_OK)
         {
-            status = Motor_WaitAck(motors[i]->address, 0xF3U, ack_timeout);
-            /* 收到了电机的使能确认 */
-            Log_Printf("Motor %u enable confirm:%d\r\n", (unsigned int)motors[i]->address, (int)status);
+            status = Motor_WaitAck(app_chassis.motor[i]->address, X42S_FUNC_ENABLE, MOTOR_ACK_TIMEOUT_MS);
+        }
+        /* 没收到应答 */
+        if(status != HAL_OK)
+        {
+            Log_Printf("Motor %u %s FAIL:%d\r\n", (unsigned int)app_chassis.motor[i]->address,
+                      (enable != 0U) ? "enable" : "disable", (int)status);
+            /* 只记录第一次出现的错误 */
+            if(result == HAL_OK)
+            {
+                result = status;
+            }
+        }
+        osDelay(10);
+    }
+    return result;
+}
+
+/* 
+ * 依次给四台麦克纳姆轮电机发送目标转速，并等待每台电机返回速度指令应答。如果发生错误，根据stop_on_error决定是否继续发送剩余电机的指令
+ * rpm[4]:四台电机的目标转速,stop_on_error:发送错误后是否停止,stop_on_error这个的目的是停车时即使某一台电机发送停车指令失败，也要继续尝试给其他三台电机发送停车指令，尽可能让整个底盘停下来。
+ */
+static HAL_StatusTypeDef Chassis_SendWheelRpm(const int16_t rpm[4], bool stop_on_error)
+{
+    /* 保存整个函数最终的执行结果 */
+    HAL_StatusTypeDef result = HAL_OK;
+    /* 保存当前这台电机的执行结果 */
+    HAL_StatusTypeDef status;
+    uint8_t i;
+
+    for(i = 0U; i < 4U; i++)
+    {
+        /* 清空电机应答队列中尚未读取的消息 */
+        osMessageQueueReset(motor_ack_queue);
+        /* 发送当前电机的目标转速 */
+        status = App_Chassis_SetOneWheelRpm(i, rpm[i]);
+        /* 等待电机返回速度应答 */
+        if(status == HAL_OK)
+        {
+            status = Motor_WaitAck(app_chassis.motor[i]->address, X42S_FUNC_SPEED, MOTOR_ACK_TIMEOUT_MS);
         }
         if(status != HAL_OK)
         {
-            failed = 1U;
-            break;
-        }
-        osDelay(10);
-    }
-    /* 记录起始位置 */
-    for(i = 0U; i < 4U; i++)
-    {
-        status = Motor_ReadPosition(motors[i], ack_timeout, &pos_start[i]);
-        /* 读起始位置成功 */
-        Log_Printf("Motor %u start pos read:%d\r\n", (unsigned int)motors[i]->address, (int)status);        
-    }
-    /* 根据运动分量计算轮速：先验证左横移 */
-    status = App_Chassis_CalcWheelRpm(30, 30, 0, test_rpm);
-    
-    if(status != HAL_OK)
-    {
-        failed = 1U;
-        /* 麦轮轮速计算失败，比如算出来超过了 3000 RPM */
-        Log_Printf("Chassis wheel calculation FAIL\r\n");
-    }
-    else
-    {
-        /* 算出来的四个轮子转速，顺序是左前、右前、左后、右后 */
-        Log_Printf("Wheel RPM: %d %d %d %d\r\n", (int)test_rpm[0], (int)test_rpm[1], (int)test_rpm[2], (int)test_rpm[3]);
-    }
-    /* 计算和使能均成功后，逐台发送轮速 */
-    if(failed == 0U)
-    {
-        for(i = 0U; i < 4U; i++)
-        {
-            osMessageQueueReset(motor_ack_queue);
-            status = App_Chassis_SetOneWheelRpm(i, test_rpm[i]);
-            /* 调速命令发出去了 */
-            Log_Printf("Motor %u speed TX:%d\r\n", (unsigned int)motors[i]->address, (int)status);
-            if(status == HAL_OK)
+            Log_Printf("Motor %u speed FAIL:%d\r\n", (unsigned int)app_chassis.motor[i]->address, (int)status);
+            if(result == HAL_OK)
             {
-                status = Motor_WaitAck(motors[i]->address, 0xF6U, ack_timeout);
-                /* 调速命令发收到了确认 */
-                Log_Printf("Motor %u speed confirm:%d\r\n", (unsigned int)motors[i]->address, (int)status);
-
+                result = status;
             }
-
-            if(status != HAL_OK)
+            if(stop_on_error)
             {
-                failed = 1U;
                 break;
             }
-            osDelay(10);
-        }
-    }
-
-    if(failed == 0U)
-    {
-        osDelay(3000);
-    }
-
-    /* 正常结束或发送异常，都尝试停止电机 */
-    for(i = 0U; i < 4U; i++)
-    {
-        osMessageQueueReset(motor_ack_queue);
-        
-        status = App_Chassis_SetOneWheelRpm(i, 0);
-        /* 停转命令（转速设为 0）发出去了 */
-        Log_Printf("Motor %u stop TX:%d\r\n", (unsigned int)motors[i]->address, (int)status);
-        if(status == HAL_OK)
-        {
-            status = Motor_WaitAck(motors[i]->address, 0xF6U, ack_timeout);
-            /* 停转命令收到了确认 */
-            Log_Printf("Motor %u stop confirm:%d\r\n",(unsigned int)motors[i]->address, (int)status);
-        }
-    }
-    osDelay(10);
-    /* 停稳后读取结束位置，打印每台电机转过的计数 */
-    osDelay(200);
-    for(i = 0U; i < 4U; i++)
-    {
-        status = Motor_ReadPosition(motors[i], ack_timeout, &pos_end[i]);
-        /* 结束位置减去起始位置，就是这一轮转了多少，括号里是读取函数的返回值 */
-        Log_Printf("Motor %u delta:%ld (%d)\r\n", (unsigned int)motors[i]->address, 
-                  (long)(pos_end[i] - pos_start[i]), (int)status);
-    }
-    /* 关闭全部电机驱动 */
-    for(i = 0U; i < 4U; i++)
-    {
-        osMessageQueueReset(motor_ack_queue);
-        status = BSP_X42S_Enable(motors[i], 0U);
-        /* 关闭使能（松轴）的命令发出去了 */
-        Log_Printf("Motor %u disable TX%d", (unsigned int)(i + 1U), (int)status);
-        if(status == HAL_OK)
-        {
-            status = Motor_WaitAck(motors[i]->address, 0xF3U, ack_timeout);
-            /* 关闭使能（松轴）的命令收到了确认 */
-            Log_Printf("Motor %u disable confirm:%d\r\n", (unsigned int)motors[i]->address,(int)status);
         }
         osDelay(10);
     }
+    return result;
+}
+
+/* 
+ * 依次读取四个电机的当前位置，并将读取结果分别保存到pos[0]~pos[3]中
+ */
+static HAL_StatusTypeDef Motor_ReadAllPositions(int32_t pos[4])
+{
+    /* 保存当前电机的位置读取结果 */
+    HAL_StatusTypeDef status;
+    uint8_t i;
+
+    for(i = 0U; i < 4U; i++)
+    {
+        /* 读取电机位置 */
+        status = Motor_ReadPosition(app_chassis.motor[i], MOTOR_ACK_TIMEOUT_MS, &pos[i]);
+        if(status != HAL_OK)
+        {
+            Log_Printf("Motor %u read pos FAIL:%d\r\n", (unsigned int)app_chassis.motor[i]->address, (int)status);
+            return status;
+        }
+    }
+    return HAL_OK;
+}
+
+/* 
+ * 在机器人停止运动时，再读取一次四个电机的编码器位置和IMU航向角，计算这段时间四个轮子实际移动的距离(编码器计数差值)，然后更新机器人的里程计数据。
+ * odom:里程计对象，保存机器人的位置、姿态等信息,last_pose[4]:保存上一次读取的四个电机编码器位置。
+ */
+static HAL_StatusTypeDef Chassis_OdomStep(Odom_t *odom, int32_t last_pose[4])
+{
+    /* 保存当前四个电机的编码器位置 */
+    int32_t now_pos[4];
+    /* 保存四个电机本次运动的计数增量 */
+    int32_t delta[4];
+    /* 保存IMU当前航向角，单位为弧度 */
+    float yaw_rad;
+    /* 保存函数执行状态 */
+    HAL_StatusTypeDef status;
+    uint8_t i;
+    /* 读取四个电机当前的编码器位置 */
+    status = Motor_ReadAllPositions(now_pos);
+    if(status != HAL_OK)
+    {
+        return status;
+    }
+    /* 获取IMU航向角 */
+    if(!App_Imu_GetYawRad(&yaw_rad, IMU_MAX_AGE_MS))
+    {
+        Log_Printf("IMU yaw stale\r\n");
+        return HAL_ERROR;
+    }
+    /* 计算四个轮子的编码器增量 */
+    for(i = 0U; i < 4U; i++)
+    {
+        /* 先计算编码器位置变化量 */
+        /* 然后统一四个轮子的前进方向 */
+        delta[i] = App_Chassis_ToForwardCount(i, Odom_CountDelta(now_pos[i], last_pose[i]));
+        /* 更新上一次的位置记录 */
+        last_pose[i] = now_pos[i];
+    }
+    /* 更新里程计 */
+    Odom_Update(odom, delta, yaw_rad);
+    return HAL_OK;
+}
+
+/* 打印位姿：坐标取整到mm，角度单位0.1度，避免在控制任务里格式化浮点数 */
+static void Odom_LogPose(const char *tag, const Odom_t *odom)
+{
+    Log_Printf("Odom %s x:%ld y:%ld th:%ld enc_th:%ld\r\n", tag, 
+              (long)odom->pose.x_mm, (long)odom->pose.y_mm,
+              (long)(odom->pose.theta_rad * RAD_TO_DECIDEG),
+              (long)(odom->enc_theta_rad * RAD_TO_DECIDEG));
+}
+/* 把当前位姿和测试结果发布给UI任务，由UI任务画到OLED上 */
+static void Odom_Report(App_OdomTestState_t state, const Odom_t *odom, HAL_StatusTypeDef result, uint32_t cycles, uint32_t overruns)
+{
+    App_OdomReport_t report;
+
+    report.state = state;
+    report.x_mm = (int32_t)odom->pose.x_mm;
+    report.y_mm = (int32_t)odom->pose.y_mm;
+    report.th_decideg = (int32_t)(odom->pose.theta_rad * RAD_TO_DECIDEG);
+    report.enc_th_decideg = (int32_t)(odom->enc_theta_rad * RAD_TO_DECIDEG);
+    report.result = (int32_t)result;
+    report.cycles = cycles;
+    report.overruns = overruns;
+
+    App_Status_PublishOdom(&report);
+}
+/* 底盘里程计测试控制任务
+ * 初始化底盘和里程计,等待电机和IMU准备就绪,获取四个电机的初始位置,控制机器人直线向前运动,
+ * 周期性读取电机位置计算机器人实际移动距离,达到目标距离或发生异常时停车,最后输出里程计测试结果
+*/
+void App_ControlTask(void *argument)
+{
+    static const Odom_Config_t odom_cfg = {
+        CHASSIS_WHEEL_DIAMETER_MM,
+        CHASSIS_WHEELBASE_MM / 2.0f,
+        CHASSIS_TRACK_MM / 2.0f,
+        CHASSIS_COUNTS_PER_REV
+    };
+    /* 定义机器人初始位姿 */
+    const Odom_Pose_t origin = {0.0f, 0.0f, 0.0f};
+    /* 四个电机的停车转速 */
+    const int16_t zero_rpm[4] = {0, 0, 0, 0};
+    /* 保存运动学计算得到的四轮目标转速 */
+    int16_t wheel_rpm[4] = {0, 0, 0, 0};
+    /* 保存上一次读取的四个电机位置 */
+    int32_t last_pos[4] = {0, 0, 0, 0};
+    /* 里程计对象，保存配置和机器人位姿等信息 */
+    Odom_t odom;
+    /* IMU获取的航向角 */
+    float yaw_rad = 0.0f;
+    /* 测试开始时的系统时间 */
+    uint32_t start_tick;
+    /* 下一次周期执行的目标时间 */
+    uint32_t next_tick;
+    /* 里程计更新次数 */
+    uint32_t cycles = 0U;
+    /* 周期执行超时次数 */
+    uint32_t overruns = 0U;
+    /* 保存函数执行状态 */
+    HAL_StatusTypeDef status = HAL_OK;
+    /* 标记是否已经开始运动 */
+    bool moving = false;
+
+    (void)argument;
+    memset(&odom, 0, sizeof(odom));
+    /* 初始化底盘 */
+    App_Chassis_Init();
+
+    /* 等待电机上电、IMU 开始出数据 */
+    osDelay(2000);
+    /* 初始化里程计 */
+    if(!Odom_Init(&odom, &odom_cfg))
+    {
+        Log_Printf("Odom init FAIL\r\n");
+        status = HAL_ERROR;
+    }
+
+    /* 检查IMU航向角，没有有效航向就不发车 */
+    if(status == HAL_OK && !App_Imu_GetYawRad(&yaw_rad, IMU_MAX_AGE_MS))
+    {
+        Log_Printf("IMU yaw not ready, test aborted\r\n");
+        status = HAL_ERROR;
+    }
+    /* 使能电机 */
+    if(status == HAL_OK)
+    {
+        status = Motor_SetEnableAll(1U);
+    }
+    /* 读取四个电机当前的编码器位置 */
+    if(status == HAL_OK)
+    {
+        status = Motor_ReadAllPositions(last_pos);
+    }
+    /* 设置初始位姿并计算四轮转速 */
+    if(status == HAL_OK)
+    {
+        /* 设置里程计初始位姿 */
+        Odom_SetPose(&odom, origin, yaw_rad);
+        /* 计算四个轮子的目标转速 */
+        status = App_Chassis_CalcWheelRpm(ODOM_TEST_FORWARD_RPM, 0, 0, wheel_rpm);
+    }
+    /* 启动机器人 */
+    if(status == HAL_OK)
+    {
+        Log_Printf("Odom test start: %d rpm, target %ld mm\r\n",
+                   (int)ODOM_TEST_FORWARD_RPM, (long)ODOM_TEST_TARGET_MM);
+        moving = true;
+        Odom_Report(APP_ODOM_TEST_RUN, &odom, HAL_OK, 0U, 0U);
+        /* 将四个轮子的目标转速发送给电机 */
+        status = Chassis_SendWheelRpm(wheel_rpm, true);
+    }
+
+    /* 固定周期更新里程计：走够距离、超时或通信失败都会退出 */
+    start_tick = osKernelGetTickCount();
+    next_tick = start_tick;
+    while(status == HAL_OK)
+    {
+        next_tick += ODOM_PERIOD_MS;
+        if(osDelayUntil(next_tick) != osOK)
+        {
+            /* 上一周期耗时超过 ODOM_PERIOD_MS，记一次超时 */
+            overruns++;
+        }
+        /* 更新里程计 */
+        status = Chassis_OdomStep(&odom, last_pos);
+        if(status != HAL_OK)
+        {
+            break;
+        }
+        /* 记录更新次数 */
+        cycles++;
+        /* 定期打印机器人位姿 */
+        if((cycles % ODOM_LOG_EVERY) == 0U)
+        {
+            Odom_LogPose("run", &odom);
+            Odom_Report(APP_ODOM_TEST_RUN, &odom, HAL_OK, cycles, overruns);
+        }
+        /* 判断是否达到目标距离 */
+        if(odom.pose.x_mm >= ODOM_TEST_TARGET_MM)
+        {
+            break;
+        }
+        /* 判断是否超时 */
+        if((osKernelGetTickCount() - start_tick) >= ODOM_TEST_TIMEOUT_MS)
+        {
+            Log_Printf("Odom test timeout\r\n");
+            status = HAL_TIMEOUT;
+        }
+    }
+
+    /* 不论成功失败都停车：每台都尝试，不因单台失败中断 */
+    (void)Chassis_SendWheelRpm(zero_rpm, false);
+
+    if(moving)
+    {
+        /* 停稳后再更新一次，把刹车滑行的距离也算进去 */
+        osDelay(200);
+        if(Chassis_OdomStep(&odom, last_pos) == HAL_OK)
+        {
+            Odom_LogPose("final", &odom);
+        }
+    }
+
+    Log_Printf("Odom test result:%d cycles:%lu overruns:%lu\r\n",
+               (int)status, (unsigned long)cycles, (unsigned long)overruns);
+    Odom_Report(APP_ODOM_TEST_DONE, &odom, status, cycles, overruns);
+    (void)Motor_SetEnableAll(0U);
+
     for(;;)
     {
         osDelay(1000);
     }
 }
-

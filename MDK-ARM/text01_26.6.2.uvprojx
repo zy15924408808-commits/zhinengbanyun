@@ -1860,6 +1860,21 @@
               <FileType>1</FileType>
               <FilePath>..\App\Src\app_chassis.c</FilePath>
             </File>
+            <File>
+              <FileName>app_imu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Src\app_imu.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_status.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Src\app_status.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_ui.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\Src\app_ui.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
