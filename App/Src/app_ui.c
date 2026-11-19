@@ -55,19 +55,20 @@ void App_Ui_DrawOdom(BSP_OLED_t oled, const App_OdomReport_t *report)
 
     (void)snprintf(line, sizeof(line), "Y:%ld MM", (long)report->y_mm);
     BSP_OLED_DrawString(oled, 3U, 0U, line);
-
+    /* 航向角 */
     Ui_FormatDeciDeg(line, sizeof(line), "TH", (long)report->th_decideg);
     BSP_OLED_DrawString(oled, 4U, 0U, line);
-
+    /* 编码器计算的角度 */
     Ui_FormatDeciDeg(line, sizeof(line), "ENC", (long)report->enc_th_decideg);
     BSP_OLED_DrawString(oled, 5U, 0U, line);
 
     /* 结果和周期统计只有结束后才有意义 */
     if(report->state == APP_ODOM_TEST_DONE)
     {
+        /* 测试结果 */
         (void)snprintf(line, sizeof(line), "RES:%s", Ui_ResultText(report->result));
         BSP_OLED_DrawString(oled, 6U, 0U, line);
-
+        /* 测试周期和超时次数 */
         (void)snprintf(line, sizeof(line), "CYC:%lu OV:%lu", (unsigned long)report->cycles, (unsigned long)report->overruns);
         BSP_OLED_DrawString(oled, 7U, 0U, line);
     }
