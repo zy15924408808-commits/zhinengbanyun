@@ -224,6 +224,7 @@ void StartSensor(void *argument)
           Log_Printf("Yaw invalid\r\n");
         }
       }
+      osDelay(100);
   }
   /* USER CODE END StartSensor */
 }
