@@ -1,8 +1,10 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
 
-/* ---- 底盘几何参数（2026-11-17 实测），单位 mm --- */
-#define CHASSIS_WHEEL_DIAMETER_MM   77.0f       /* 麦伦直径 */
+/* ---- 底盘几何参数（2026-11-17 实测），单位 mm -- -- */
+/* 有效轮径:外径实测77mm，临时值79.9mm(2026-11-19在实验室地面用1m直线标定)，比赛场地需要重新标定 */
+
+#define CHASSIS_WHEEL_DIAMETER_MM   79.9f       /* 麦轮直径 */
 #define CHASSIS_WHEELBASE_MM        206.0f      /* 前后轮轴心距离 */
 #define CHASSIS_TRACK_MM            220.0f      /* 左右轮中心距离 */
 #define CHASSIS_COUNTS_PER_REV      65536.0f    /* X42S Emm固件一圈的计数 */
