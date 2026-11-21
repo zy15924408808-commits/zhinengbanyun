@@ -9,6 +9,12 @@
 #define CHASSIS_TRACK_MM            220.0f      /* 左右轮中心距离 */
 #define CHASSIS_COUNTS_PER_REV      65536.0f    /* X42S Emm固件一圈的计数 */
 
+/* ---- 里程计测试模式：只改 ODOM_TEST_MODE 这一行 ---- */
+#define ODOM_TEST_MODE_FORWARD      0           /* 前进1m */
+#define ODOM_TEST_MODE_STRAFE       1           /* 向左横移1m */
+#define ODOM_TEST_MODE_SPIN         2           /* 原地左转360° */
+#define ODOM_TEST_MODE              ODOM_TEST_MODE_FORWARD
+
 /* ---- 日志开关：1 打开，0 关闭 ---- */
 #define APP_LOG_IMU                 0           /* 每次 IMU 变更都打印四元数和航向 */
 #define APP_LOG_MOTOR_POS           0           /* 每次收到 0x36 应答都打印位置 */

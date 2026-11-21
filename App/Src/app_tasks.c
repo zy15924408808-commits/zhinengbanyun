@@ -231,9 +231,25 @@ static HAL_StatusTypeDef Motor_ReadPosition(BSP_X42S_t motor, uint32_t timeout_t
 #define ODOM_PERIOD_MS          20U         /* 里程计更新周期 */
 #define ODOM_LOG_EVERY          10U         /* 每10个周期（200ms）打印一次位姿 */
 
-#define ODOM_TEST_FORWARD_RPM   60          /* 前进转速，约 242 mm/s */
-#define ODOM_TEST_TARGET_MM     1000.0f     /* 走到这个距离就停 */
-#define ODOM_TEST_TIMEOUT_MS    8000U       /* 正常约4.2s走完，超时强制停车 */
+/* 三种测试的运动分量和超时由 ODOM_TEST_MODE 决定 */
+#if ODOM_TEST_MODE == ODOM_TEST_MODE_FORWARD
+#define ODOM_TEST_CMD_FORWARD   60          /* 前进转速，约250mm/s */
+#define ODOM_TEST_CMD_LEFT      0
+#define ODOM_TEST_CMD_TURN      0
+#define ODOM_TEST_TIMEOUT_MS    8000U       /* 正常约4s走完，超时强制停车 */
+#elif ODOM_TEST_MODE == ODOM_TEST_MODE_STRAFE
+#define ODOM_TEST_CMD_FORWARD   0
+#define ODOM_TEST_CMD_LEFT      60          /* 向左横移，理想速度约250mm/s */
+#define ODOM_TEST_CMD_TURN      0
+#define ODOM_TEST_TIMEOUT_MS    8000U
+#else
+#define ODOM_TEST_CMD_FORWARD   0
+#define ODOM_TEST_CMD_LEFT      0
+#define ODOM_TEST_CMD_TURN      60          /* 原地左转，理想约67度/秒，转一圈约5.4s */
+#define ODOM_TEST_TIMEOUT_MS    9000U
+#endif
+#define ODOM_TEST_TARGET_MM     1000.0f     /* 前进、横移走到这个距离就停 */
+#define ODOM_TEST_TARGET_RAD    6.2831853f  /* 原地旋转转到这个角度就停：360° */
 #define RAD_TO_DECIDEG          572.957795f /* 弧度换算成0.1度 */
 
 /* 
@@ -382,8 +398,19 @@ static void Odom_LogPose(const char *tag, const Odom_t *odom)
 {
     Log_Printf("Odom %s x:%ld y:%ld th:%ld enc_th:%ld\r\n", tag, 
               (long)odom->pose.x_mm, (long)odom->pose.y_mm,
-              (long)(odom->pose.theta_rad * RAD_TO_DECIDEG),
-              (long)(odom->enc_theta_rad * RAD_TO_DECIDEG));
+              (long)(odom->total_theta_rad * RAD_TO_DECIDEG),
+              (long)(odom->total_enc_theta_rad * RAD_TO_DECIDEG));
+}
+/* 测试是否已经达到目标：前进看x、横移看y，原地旋转看IMU累计转角 */
+static bool Odom_TestReached(const Odom_t *odom)
+{
+#if ODOM_TEST_MODE == ODOM_TEST_MODE_FORWARD
+    return odom->pose.x_mm >= ODOM_TEST_TARGET_MM;
+#elif ODOM_TEST_MODE == ODOM_TEST_MODE_STRAFE
+     return odom->pose.y_mm >= ODOM_TEST_TARGET_MM;
+#else
+    return odom->total_theta_rad >= ODOM_TEST_TARGET_RAD;
+#endif
 }
 /* 把当前位姿和测试结果发布给UI任务，由UI任务画到OLED上 */
 static void Odom_Report(App_OdomTestState_t state, const Odom_t *odom, HAL_StatusTypeDef result, uint32_t cycles, uint32_t overruns)
@@ -393,8 +420,8 @@ static void Odom_Report(App_OdomTestState_t state, const Odom_t *odom, HAL_Statu
     report.state = state;
     report.x_mm = (int32_t)odom->pose.x_mm;
     report.y_mm = (int32_t)odom->pose.y_mm;
-    report.th_decideg = (int32_t)(odom->pose.theta_rad * RAD_TO_DECIDEG);
-    report.enc_th_decideg = (int32_t)(odom->enc_theta_rad * RAD_TO_DECIDEG);
+    report.th_decideg = (int32_t)(odom->total_theta_rad * RAD_TO_DECIDEG);
+    report.enc_th_decideg = (int32_t)(odom->total_enc_theta_rad * RAD_TO_DECIDEG);
     report.result = (int32_t)result;
     report.cycles = cycles;
     report.overruns = overruns;
@@ -474,13 +501,12 @@ void App_ControlTask(void *argument)
         /* 设置里程计初始位姿 */
         Odom_SetPose(&odom, origin, yaw_rad);
         /* 计算四个轮子的目标转速 */
-        status = App_Chassis_CalcWheelRpm(ODOM_TEST_FORWARD_RPM, 0, 0, wheel_rpm);
+        status = App_Chassis_CalcWheelRpm(ODOM_TEST_CMD_FORWARD, ODOM_TEST_CMD_LEFT, ODOM_TEST_CMD_TURN, wheel_rpm);
     }
     /* 启动机器人 */
     if(status == HAL_OK)
     {
-        Log_Printf("Odom test start: %d rpm, target %ld mm\r\n",
-                   (int)ODOM_TEST_FORWARD_RPM, (long)ODOM_TEST_TARGET_MM);
+        Log_Printf("Odom test start: mode %d\r\n", (int)ODOM_TEST_MODE);
         moving = true;
         Odom_Report(APP_ODOM_TEST_RUN, &odom, HAL_OK, 0U, 0U);
         /* 将四个轮子的目标转速发送给电机 */
@@ -513,7 +539,7 @@ void App_ControlTask(void *argument)
             Odom_Report(APP_ODOM_TEST_RUN, &odom, HAL_OK, cycles, overruns);
         }
         /* 判断是否达到目标距离 */
-        if(odom.pose.x_mm >= ODOM_TEST_TARGET_MM)
+        if(Odom_TestReached(&odom))
         {
             break;
         }
