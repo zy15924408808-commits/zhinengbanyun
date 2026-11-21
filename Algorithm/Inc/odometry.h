@@ -24,11 +24,13 @@ typedef struct
 /* 里程计状态 */
 typedef struct
 {
-    Odom_Config_t cfg;      /* 保存里程计配置参数 */
-    float mm_per_count;     /* 编码器每个计数对应的移动距离 */
-    Odom_Pose_t pose;       /* 保存机器人的位置和朝向 */
-    float yaw_offset_rad;   /* IMU航向角的偏置 */
-    float enc_theta_rad;    /* 仅根据编码器计算的累计航向角，用来和IMU对比、判断打滑 */
+    Odom_Config_t cfg;          /* 保存里程计配置参数 */
+    float mm_per_count;         /* 编码器每个计数对应的移动距离 */
+    Odom_Pose_t pose;           /* 保存机器人的位置和朝向 */
+    float yaw_offset_rad;       /* IMU航向角的偏置 */
+    float enc_theta_rad;        /* 仅根据编码器计算的累计航向角，用来和IMU对比、判断打滑 */
+    float total_theta_rad;      /* IMU累计转过的角度，不回绕：转一圈就是2π，逆时针为正 */
+    float total_enc_theta_rad   /* 编码器累计转过的角度，不回绕，用来和IMU对比 */
 }Odom_t;
 
 /* 计算两次编码器读数之差，溢出回绕时也正确 */

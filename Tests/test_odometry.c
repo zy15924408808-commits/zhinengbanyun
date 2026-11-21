@@ -152,6 +152,59 @@ static void test_encoder_heading_for_rotation(void)
     CHECK_NEAR(o.pose.y_mm, 0.0f, TOL_MM);
 }
 
+static void test_total_rotation_accumulates(void)
+{
+    Odom_t o;
+    const int32_t c = 5000;
+    const int32_t spin[4] = {-c, c, -c, c};      /* 原地左转 */
+    const float step_enc = (float)c * (PI_F * 80.0f / (float)REV) / (100.0f + 110.0f);
+    float yaw = 0.0f;
+    int i;
+
+    Odom_Init(&o, &cfg);
+    for(i = 0; i < 12; i++)
+    {
+        yaw += PI_F / 6.0f;                      /* 每次转30°，共360° */
+        Odom_Update(&o, spin, yaw);
+    }
+
+    CHECK_NEAR(o.total_theta_rad, 2.0f * PI_F, 1e-3);
+    CHECK_NEAR(o.pose.theta_rad, 0.0f, 1e-3);    /* 回绕后的航向回到0 */
+    CHECK_NEAR(o.total_enc_theta_rad, 12.0f * step_enc, 1e-4);
+}
+
+static void test_total_rotation_clockwise_is_negative(void)
+{
+    Odom_t o;
+    const int32_t still[4] = {0, 0, 0, 0};
+    float yaw = 0.0f;
+    int i;
+
+    Odom_Init(&o, &cfg);
+    for(i = 0; i < 24; i++)
+    {
+        yaw -= PI_F / 6.0f;                      /* 顺时针转720° */
+        Odom_Update(&o, still, yaw);
+    }
+
+    CHECK_NEAR(o.total_theta_rad, -4.0f * PI_F, 2e-3);
+}
+
+static void test_set_pose_resets_totals(void)
+{
+    Odom_t o;
+    const int32_t spin[4] = {-1000, 1000, -1000, 1000};
+    Odom_Pose_t start = {0.0f, 0.0f, 0.0f};
+
+    Odom_Init(&o, &cfg);
+    Odom_Update(&o, spin, 1.0f);
+    CHECK(o.total_theta_rad > 0.5f);
+
+    Odom_SetPose(&o, start, 1.0f);
+    CHECK_NEAR(o.total_theta_rad, 0.0f, 1e-6);
+    CHECK_NEAR(o.total_enc_theta_rad, 0.0f, 1e-6);
+}
+
 void run_odometry_tests(void)
 {
     RUN_TEST(test_init_rejects_bad_config);
@@ -164,4 +217,7 @@ void run_odometry_tests(void)
     RUN_TEST(test_heading_wrap_at_180);
     RUN_TEST(test_square_returns_to_origin);
     RUN_TEST(test_encoder_heading_for_rotation);
+    RUN_TEST(test_total_rotation_accumulates);
+    RUN_TEST(test_total_rotation_clockwise_is_negative);
+    RUN_TEST(test_set_pose_resets_totals);
 }

@@ -36,6 +36,7 @@ float Odom_WrapAngle(float rad)
     }
     return rad;
 }
+
 /*
  * 里程计模块初始化函数
  * 根据配置参数初始化里程计对象，计算车轮每个编码器计数对应的实际移动距离，并将机器人的初始位置设置为原点。
@@ -87,6 +88,9 @@ void Odom_SetPose(Odom_t *odom, Odom_Pose_t pose, float imu_yaw_rad)
     odom->yaw_offset_rad = Odom_WrapAngle(pose.theta_rad - imu_yaw_rad);
     /* 把当前机器人的初始航向角，作为编码器航向角积分的起点。*/
     odom->enc_theta_rad = pose.theta_rad;
+    /* 累计转角从0重新开始 */
+    odom->total_theta_rad = 0.0f;
+    odom->total_enc_theta_rad = 0.0f;
 }
 /*
  * 更新机器人当前的位置和朝向函数
@@ -101,6 +105,8 @@ void Odom_Update(Odom_t *odom, const int32_t wheel_delta[4], float imu_yaw_rad)
     float dy_body;      /* 机器人自身坐标系下Y方向的位移 */
     float theta_new;    /* 本次更新得到的最新场地航向角 */
     float theta_mid;    /* 本次运动过程中的平均航向角 */
+    float theta_delta;  /* 本次IMU航向变化量，走最短角 */
+    float enc_delta;    /* 本次根据编码器算出的转角变化量 */
     uint8_t i;
 
     if(odom == NULL || wheel_delta == NULL)
@@ -118,20 +124,22 @@ void Odom_Update(Odom_t *odom, const int32_t wheel_delta[4], float imu_yaw_rad)
     dx_body = ( d[0] + d[1] + d[2] + d[3]) / 4.0f;
     /* 朝Y轴移动会有两个对角电机编码器是负值，所有要带负号，然后相加除以4就是小车朝Y轴移动的距离 */
     dy_body = (-d[0] + d[1] + d[2] - d[3]) / 4.0f;
-    /* 根据编码器计算旋转角度 */
-    odom->enc_theta_rad = Odom_WrapAngle(odom->enc_theta_rad + 
-                                        (-d[0] + d[1] - d[2] + d[3]) / 
-                                        (4.0f * (odom->cfg.half_wheelbase_mm + odom->cfg.half_track_mm)));
-
+    /* 根据编码器计算旋转角度：先算本次增量，再分别累加到回绕角和累计值 */
+    enc_delta = (-d[0] + d[1] - d[2] + d[3]) / (4.0f * (odom->cfg.half_wheelbase_mm + odom->cfg.half_track_mm));
+    odom->enc_theta_rad = Odom_WrapAngle(odom->enc_theta_rad + enc_delta);
+    odom->total_enc_theta_rad += enc_delta;
+    
     /* 使用IMU计算最新航向角 */
     theta_new = Odom_WrapAngle(imu_yaw_rad + odom->yaw_offset_rad);
     /* 计算本次运动的平均航向角 */
-    theta_mid = odom->pose.theta_rad + Odom_WrapAngle(theta_new - odom->pose.theta_rad) / 2.0f;
+    theta_delta = Odom_WrapAngle(theta_new - odom->pose.theta_rad);
+    theta_mid = odom->pose.theta_rad + theta_delta / 2.0f;
     /* 更新机器人在场地坐标系中的X、Y */
     odom->pose.x_mm += dx_body * cosf(theta_mid) - dy_body * sinf(theta_mid);
     odom->pose.y_mm += dx_body * sinf(theta_mid) + dy_body * cosf(theta_mid);
     /* 将经过 IMU 偏移修正得到的航向角，保存到当前位姿中。*/
     odom->pose.theta_rad = theta_new;
+    odom->total_theta_rad += theta_delta;
 }
 
 
