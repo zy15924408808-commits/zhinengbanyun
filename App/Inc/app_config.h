@@ -17,7 +17,7 @@
 #define ODOM_TEST_MODE_FORWARD      0           /* 前进1m */
 #define ODOM_TEST_MODE_STRAFE       1           /* 向左横移1m */
 #define ODOM_TEST_MODE_SPIN         2           /* 原地左转360° */
-#define ODOM_TEST_MODE              ODOM_TEST_MODE_STRAFE 
+#define ODOM_TEST_MODE              ODOM_TEST_MODE_FORWARD 
 
 /* ---- 日志开关：1 打开，0 关闭 ---- */
 #define APP_LOG_IMU                 0           /* 每次 IMU 变更都打印四元数和航向 */
