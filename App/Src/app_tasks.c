@@ -35,7 +35,7 @@ void App_RTOS_Init(void)
         Error_Handler();
         return;
     }
-
+    /* 创建存放原始电机数据块队列 */
     motor_rx_queue = osMessageQueueNew(8U, sizeof(MotorRxChunk_t), NULL);
 
     if (motor_rx_queue == NULL)
@@ -44,7 +44,7 @@ void App_RTOS_Init(void)
         return;
     }
 
-    /* 创建消息队列 */
+    /* 创建电机应答数据队列 */
     motor_ack_queue = osMessageQueueNew(8U, sizeof(X42S_Response_t), NULL);
     if(motor_ack_queue == NULL)
     {
