@@ -438,7 +438,9 @@ void App_ControlTask(void *argument)
         CHASSIS_WHEEL_DIAMETER_MM,
         CHASSIS_WHEELBASE_MM / 2.0f,
         CHASSIS_TRACK_MM / 2.0f,
-        CHASSIS_COUNTS_PER_REV
+        CHASSIS_COUNTS_PER_REV,
+        CHASSIS_SCALE_X,
+        CHASSIS_SCALE_Y
     };
     /* 定义机器人初始位姿 */
     const Odom_Pose_t origin = {0.0f, 0.0f, 0.0f};

@@ -11,6 +11,8 @@ typedef struct
     float half_wheelbase_mm;    /* 前后轮轴距的一半 */
     float half_track_mm;        /* 左右轮距的一半 */
     float counts_per_rev;       /* 电机转一圈的编码器计数：Emm 固件为 65536 */
+    float scale_x;              /* 前进方向距离修正系数：实际距离 / 里程计距离，1.0表示不修正 */
+    float scale_y;              /* 横移方向距离修正系数：麦伦横移打滑更多，通常小于1.0*/
 }Odom_Config_t;
 
 /* 场地坐标系下的位姿：逆时针转角为正 */

@@ -8,7 +8,7 @@
 #define TOL_RAD   1e-5
 
 /* 测试用参数：轮径 80mm，轴距 200mm，轮距 220mm */
-static const Odom_Config_t cfg = {80.0f, 100.0f, 110.0f, REV};
+static const Odom_Config_t cfg = {80.0f, 100.0f, 110.0f, REV, 1.0f, 1.0f};
 
 static void test_init_rejects_bad_config(void)
 {
@@ -205,6 +205,59 @@ static void test_set_pose_resets_totals(void)
     CHECK_NEAR(o.total_enc_theta_rad, 0.0f, 1e-6);
 }
 
+static void test_init_rejects_bad_scale(void)
+{
+    Odom_t o;
+    Odom_Config_t bad = cfg;
+
+    bad.scale_x = 0.0f;
+    CHECK(!Odom_Init(&o, &bad));
+
+    bad = cfg;
+    bad.scale_y = -1.0f;
+    CHECK(!Odom_Init(&o, &bad));
+}
+
+static void test_scale_applies_per_axis(void)
+{
+    Odom_t o;
+    Odom_Config_t scaled = cfg;
+    const int32_t fwd[4] = {REV, REV, REV, REV};
+    const int32_t left[4] = {-REV, REV, REV, -REV};
+
+    scaled.scale_x = 1.10f;
+    scaled.scale_y = 0.90f;
+
+    /* 前进只受scale_x影响，横移只受scale_y影响 */
+    Odom_Init(&o, &scaled);
+    Odom_Update(&o, fwd, 0.0f);
+    CHECK_NEAR(o.pose.x_mm, 1.10 * PI_F * 80.0f, TOL_MM);
+    CHECK_NEAR(o.pose.y_mm, 0.0f, TOL_MM);
+
+    Odom_Init(&o, &scaled);
+    Odom_Update(&o, left, 0.0f);
+    CHECK_NEAR(o.pose.x_mm, 0.0f, TOL_MM);
+    CHECK_NEAR(o.pose.y_mm, 0.90 * PI_F * 80.0f, TOL_MM);
+}
+
+static void test_scale_does_not_change_rotation(void)
+{
+    Odom_t a;
+    Odom_t b;
+    Odom_Config_t scaled = cfg;
+    const int32_t spin[4] = {-10000, 10000, -10000, 10000};
+
+    scaled.scale_x = 0.5f;
+    scaled.scale_y = 0.5f;
+    Odom_Init(&a, &cfg);
+    Odom_Init(&b, &scaled);
+    Odom_Update(&a, spin, 0.0f);
+    Odom_Update(&b, spin, 0.0f);
+
+    /* 距离修正系数不能影响由编码器积分出的转角 */
+    CHECK_NEAR(a.total_enc_theta_rad, b.total_enc_theta_rad, 1e-9);
+}
+
 void run_odometry_tests(void)
 {
     RUN_TEST(test_init_rejects_bad_config);
@@ -220,4 +273,7 @@ void run_odometry_tests(void)
     RUN_TEST(test_total_rotation_accumulates);
     RUN_TEST(test_total_rotation_clockwise_is_negative);
     RUN_TEST(test_set_pose_resets_totals);
+    RUN_TEST(test_init_rejects_bad_scale);
+    RUN_TEST(test_scale_applies_per_axis);
+    RUN_TEST(test_scale_does_not_change_rotation);
 }

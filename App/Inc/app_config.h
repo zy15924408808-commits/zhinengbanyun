@@ -9,11 +9,15 @@
 #define CHASSIS_TRACK_MM            220.0f      /* 左右轮中心距离 */
 #define CHASSIS_COUNTS_PER_REV      65536.0f    /* X42S Emm固件一圈的计数 */
 
+/* ---- 距离修正系数：实际距离 / 里程计距离(实验室地面标定，比赛场地需要重新标定) ---- */
+#define CHASSIS_SCALE_X             1.0f        /* 前进：残差约0.8%,暂不修正 */
+#define CHASSIS_SCALE_Y             0.944f      /* 横移：2026-11-21三次测试，卷尺/OLED=0.944f*/
+
 /* ---- 里程计测试模式：只改 ODOM_TEST_MODE 这一行 ---- */
 #define ODOM_TEST_MODE_FORWARD      0           /* 前进1m */
 #define ODOM_TEST_MODE_STRAFE       1           /* 向左横移1m */
 #define ODOM_TEST_MODE_SPIN         2           /* 原地左转360° */
-#define ODOM_TEST_MODE              ODOM_TEST_MODE_FORWARD 
+#define ODOM_TEST_MODE              ODOM_TEST_MODE_STRAFE 
 
 /* ---- 日志开关：1 打开，0 关闭 ---- */
 #define APP_LOG_IMU                 0           /* 每次 IMU 变更都打印四元数和航向 */

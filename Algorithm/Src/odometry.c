@@ -54,7 +54,8 @@ bool Odom_Init(Odom_t *odom, const Odom_Config_t *cfg)
     }
     /* 参数必须为正，否则后面会除以 0 或算出全 0 的位移 */
     if(cfg->wheel_diameter_mm <= 0.0f || cfg->counts_per_rev <= 0 ||
-       cfg->half_wheelbase_mm <= 0.0f || cfg->half_track_mm <= 0.0f)
+       cfg->half_wheelbase_mm <= 0.0f || cfg->half_track_mm <= 0.0f ||
+        cfg->scale_x <= 0.0f || cfg->scale_y <= 0.0f)
     {
         return false;
     }
@@ -121,9 +122,9 @@ void Odom_Update(Odom_t *odom, const int32_t wheel_delta[4], float imu_yaw_rad)
 
     /* 麦伦正运动学 */
     /* 四个车轮移动的距离相加除以4就是小车朝X轴移动的距离 */
-    dx_body = ( d[0] + d[1] + d[2] + d[3]) / 4.0f;
+    dx_body = ( d[0] + d[1] + d[2] + d[3]) / 4.0f * odom->cfg.scale_x;
     /* 朝Y轴移动会有两个对角电机编码器是负值，所有要带负号，然后相加除以4就是小车朝Y轴移动的距离 */
-    dy_body = (-d[0] + d[1] + d[2] - d[3]) / 4.0f;
+    dy_body = (-d[0] + d[1] + d[2] - d[3]) / 4.0f * odom->cfg.scale_y;
     /* 根据编码器计算旋转角度：先算本次增量，再分别累加到回绕角和累计值 */
     enc_delta = (-d[0] + d[1] - d[2] + d[3]) / (4.0f * (odom->cfg.half_wheelbase_mm + odom->cfg.half_track_mm));
     odom->enc_theta_rad = Odom_WrapAngle(odom->enc_theta_rad + enc_delta);
