@@ -19,7 +19,7 @@ bool Log_Init(void)
     {
         return true;
     }
-
+    /* 创建日志互斥量 */
     log_mutex = osMutexNew(&log_mutex_attributes);
 
     return log_mutex != NULL;

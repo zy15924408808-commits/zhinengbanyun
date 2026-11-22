@@ -8,8 +8,9 @@ typedef struct
 {
     BSP_X42S_t motor[4];
 
-    /* 没个轮子朝车体前进方向转动时使用的 Emm 方向 */
+    /* 每个轮子朝车体前进方向转动时使用的 Emm 方向 */
     BSP_X42S_Direction_t forward_direction[4];
+
 }App_Chassis_t;
 
 /* 全局底盘对象 */
@@ -36,5 +37,7 @@ HAL_StatusTypeDef App_Chassis_SetOneWheelRpm(uint8_t index, int16_t rpm);
 */
 HAL_StatusTypeDef App_Chassis_CalcWheelRpm(int16_t forward_rpm, int16_t left_rpm, int16_t turn_rpm, int16_t wheel_rpm[4]);
 
+/* 把电机原始计数增量换算为“车体前进方向为正”，index:0左前 1右前 2左后 3右后 */
+int32_t App_Chassis_ToForwardCount(uint8_t index, int32_t raw_delta);
 
 #endif /* APP_CHASSIS_H */

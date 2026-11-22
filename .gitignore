@@ -46,5 +46,5 @@ MDK-ARM/text01_26.6.2/
 MDK-ARM/.vscode/*.log
 MDK-ARM/.vscode/*.lock
 # Host unit test binary
-# Unit test executable
 Tests/run_tests.exe
+/.vscode/
